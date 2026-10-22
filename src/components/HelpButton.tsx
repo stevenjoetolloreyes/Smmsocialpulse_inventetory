@@ -14,7 +14,7 @@ const OPTIONS = [
 /**
  * Floating help button (bottom-right on every app page): opens a small
  * menu, then a form whose message is saved to the feedback table for the
- * platform owner to read in /platform.
+ * platform owner to read in /admin.
  */
 export function HelpButton() {
   const { run, showToast } = useStore();

@@ -87,7 +87,7 @@ export async function requireStoreSession(): Promise<{
   const user = await requireSession();
   if (user.isPlatformAdmin || user.storeId == null) {
     throw new Error(
-      "Platform admin accounts manage stores from the Platform page and do not hold store data.",
+      "Platform admin accounts manage stores from the admin console and do not hold store data.",
     );
   }
   return { user, storeId: user.storeId };

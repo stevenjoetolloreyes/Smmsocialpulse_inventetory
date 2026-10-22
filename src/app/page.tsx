@@ -18,7 +18,7 @@ export default async function HomePage() {
   if (!session) redirect("/login");
 
   // The platform admin runs the platform, not a store.
-  if (session.isPlatformAdmin) redirect("/platform");
+  if (session.isPlatformAdmin) redirect("/admin");
 
   const db = await getDb();
   if (session.storeId == null) redirect("/login");

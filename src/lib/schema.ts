@@ -16,7 +16,7 @@ import {
  * Tenancy: every tenant table carries `store_id`. All server queries are
  * scoped by the signed-in user's store — the single exception is the
  * platform admin (staff.is_platform_admin = 1, store_id NULL), who manages
- * stores and plans from /platform and never sees store data.
+ * stores and plans from /admin and never sees store data.
  */
 
 /* ---------------- platform tables ---------------- */

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  extendStorePlanAction,
   fetchPlatformData,
   logoutAction,
   platformSetPlan,
@@ -43,6 +44,9 @@ export function PlatformView({
     storeName: string;
     planId: string;
     expiresAt: string;
+    /** The store's saved expiry (yyyy-mm-dd, "" when none) — the base
+     *  the quick-extend chips count from. */
+    currentExpiresAt: string;
   } | null>(null);
 
   const refresh = async () => setData(await fetchPlatformData());
@@ -64,6 +68,30 @@ export function PlatformView({
   const logout = async () => {
     await logoutAction();
     window.location.href = "/login";
+  };
+
+  /**
+   * Quick-extend for the Set Plan modal: fills the expiry field with the
+   * store's current expiry + N months, or today + N months when the
+   * current expiry has already passed (or none is set). The field stays
+   * editable afterwards; nothing is saved until "Save plan" is clicked.
+   */
+  const applyExtend = (months: number) => {
+    if (!planEdit) return;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let base = today;
+    if (planEdit.currentExpiresAt) {
+      const cur = new Date(`${planEdit.currentExpiresAt}T00:00:00`);
+      if (!Number.isNaN(cur.getTime()) && cur.getTime() > today.getTime()) {
+        base = cur;
+      }
+    }
+    const next = new Date(base.getFullYear(), base.getMonth() + months, base.getDate());
+    const iso = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(
+      next.getDate(),
+    ).padStart(2, "0")}`;
+    setPlanEdit({ ...planEdit, expiresAt: iso });
   };
 
   const statCards = [
@@ -174,11 +202,28 @@ export function PlatformView({
                                 storeName: s.name,
                                 planId: s.planId,
                                 expiresAt: s.planExpiresAt ? s.planExpiresAt.slice(0, 10) : "",
+                                currentExpiresAt: s.planExpiresAt
+                                  ? s.planExpiresAt.slice(0, 10)
+                                  : "",
                               })
                             }
                           >
                             <Icon name="crown" /> Set plan
                           </button>
+                          {s.planId !== "free" && (
+                            <button
+                              className={btnGhost}
+                              disabled={busy}
+                              onClick={() =>
+                                void run(
+                                  () => extendStorePlanAction({ storeId: s.id }),
+                                  `${s.name} extended by 1 month.`,
+                                )
+                              }
+                            >
+                              <Icon name="calendar-plus" /> Extend
+                            </button>
+                          )}
                           {s.status === "active" ? (
                             <button
                               className={btnGhost}
@@ -288,6 +333,29 @@ export function PlatformView({
               <p className="mt-1 text-xs text-stone-400">
                 Leave blank for no expiry. After this date the store falls back to the Free
                 plan until you renew it here. Free plans ignore expiry.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-stone-400">Quick extend:</span>
+                {[
+                  { months: 1, label: "+1 month" },
+                  { months: 3, label: "+3 months" },
+                  { months: 12, label: "+12 months" },
+                ].map((c) => (
+                  <button
+                    key={c.months}
+                    type="button"
+                    className={btnGhost}
+                    disabled={planEdit.planId === "free"}
+                    onClick={() => applyExtend(c.months)}
+                  >
+                    <Icon name="calendar-plus" /> {c.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-stone-400">
+                Quick extend counts from the store&apos;s current expiry, or from today
+                when that expiry has already passed. You can still adjust the date
+                afterwards before saving.
               </p>
             </div>
             <div className="flex justify-end gap-2">

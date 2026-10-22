@@ -1,18 +1,9 @@
-import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
-import { fetchPlatformData } from "@/server/actions";
-import { PlatformView } from "@/components/PlatformView";
-
-export const dynamic = "force-dynamic";
+import { permanentRedirect } from "next/navigation";
 
 /**
- * Platform-owner console. Only the platform admin (the seeded admin
- * account) can see it; store users are sent back to their store.
+ * The platform-owner console lives at /admin now. This page stays so old
+ * links and bookmarks keep working — it permanently redirects to /admin.
  */
-export default async function PlatformPage() {
-  const session = await getSession();
-  if (!session) redirect("/login");
-  if (!session.isPlatformAdmin) redirect("/");
-  const data = await fetchPlatformData();
-  return <PlatformView userName={session.name} initialData={data} />;
+export default function PlatformRedirectPage() {
+  permanentRedirect("/admin");
 }

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function SetupPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (session.isPlatformAdmin) redirect("/platform");
+  if (session.isPlatformAdmin) redirect("/admin");
   if (session.storeId == null) redirect("/login");
   const db = await getDb();
   const store = await loadStore(db, session.storeId);

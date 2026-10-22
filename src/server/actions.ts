@@ -64,6 +64,36 @@ const OWNER_ROLES = ["Administrator"];
 const VERIFY_EMAIL_MESSAGE =
   "Please verify your email address before signing in. Check your inbox for the verification link.";
 
+const USERNAME_LINK_MESSAGE =
+  "Username cannot be a link or contain slashes — use letters, numbers, _ . - only.";
+const USERNAME_CHARS = /^[A-Za-z0-9_.-]+$/;
+
+/**
+ * Username hygiene, applied everywhere a username is created or edited
+ * (public registration and User Management): 3–30 characters of letters,
+ * numbers, underscore, dot or hyphen only — never a link or URL, so a
+ * pasted address can never become someone's username (and end up in
+ * greetings like the setup wizard's "Hi <username>").
+ */
+function assertValidUsername(username: string): void {
+  const lower = username.toLowerCase();
+  if (
+    !USERNAME_CHARS.test(username) ||
+    username.includes("/") ||
+    username.includes(":") ||
+    lower.startsWith("www.") ||
+    lower.startsWith("http")
+  ) {
+    throw new Error(USERNAME_LINK_MESSAGE);
+  }
+  if (username.length < 3) {
+    throw new Error("Username must be at least 3 characters.");
+  }
+  if (username.length > 30) {
+    throw new Error("Username must be at most 30 characters.");
+  }
+}
+
 /**
  * Signs a user in. Two modes mirror the login page tabs:
  * - "owner": identifier is an email OR username; the account must hold an
@@ -185,6 +215,54 @@ export async function loginAction(
 }
 
 /**
+ * Signs in at the dedicated platform-admin door (/admin). Only platform
+ * admin accounts (is_platform_admin = 1) may pass: a store owner or staff
+ * account is rejected even when its password is correct, so the admin
+ * area never mixes with store accounts. Reuses the same session cookie
+ * machinery as the store sign-in.
+ */
+export async function adminLoginAction(
+  username: string,
+  password: string,
+): Promise<{ user: SessionUser }> {
+  const db = await getDb();
+  const needle = username.trim().toLowerCase();
+  const rows = await db.select().from(t.staff);
+  const candidates = rows.filter((s) => s.username.toLowerCase() === needle);
+
+  const matched: StaffRow[] = [];
+  for (const c of candidates) {
+    if (await verifyPassword(password, c.passwordHash)) matched.push(c);
+  }
+  if (matched.length === 0) {
+    throw new Error("Invalid username or password.");
+  }
+  const user = matched.find((s) => s.isPlatformAdmin === 1) ?? null;
+  if (!user) {
+    throw new Error("This account is not a platform admin.");
+  }
+  if (user.emailVerified !== 1) {
+    throw new Error(VERIFY_EMAIL_MESSAGE);
+  }
+  if (user.active !== 1) {
+    throw new Error("This account is not active.");
+  }
+
+  const nowIso = new Date().toISOString();
+  await db.update(t.staff).set({ lastLogin: nowIso }).where(eq(t.staff.id, user.id));
+  const session: SessionUser = {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    role: user.role,
+    storeId: null,
+    isPlatformAdmin: true,
+  };
+  await setSessionCookie(session, false);
+  return { user: session };
+}
+
+/**
  * Public self-registration from /register (multi-store SaaS): creates a
  * NEW store (Free plan, setup not yet completed) plus its OWNER account
  * (role "Administrator", inactive + unverified). The owner activates the
@@ -204,9 +282,7 @@ export async function registerAction(input: {
   if (storeName.length < 2) {
     throw new Error("Enter your store name (at least 2 characters).");
   }
-  if (username.length < 3) {
-    throw new Error("Username must be at least 3 characters.");
-  }
+  assertValidUsername(username);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("Enter a valid email address.");
   }
@@ -1647,6 +1723,7 @@ export async function saveStaff(input: {
   const name = input.name.trim();
   if (!name) throw new Error("Name is required.");
   const username = input.username.trim();
+  if (username) assertValidUsername(username);
   const email = input.email.trim();
   const storeStaff = await db.select().from(t.staff).where(eq(t.staff.storeId, storeId));
 
@@ -1859,6 +1936,40 @@ export async function platformSetPlan(input: {
     .set({ planId: input.planId, planExpiresAt: expires })
     .where(eq(t.stores.id, input.storeId));
   return { ok: true as const };
+}
+
+/**
+ * One-click plan extension from the platform console: adds one month to
+ * a store's paid-plan expiry. The base is the current expiry when it is
+ * still in the future, otherwise now — so extending an already-expired
+ * plan restarts it from today, and because the effective plan is derived
+ * from plan_expires_at the paid plan becomes active again. The plan
+ * itself never changes here, only the expiry.
+ */
+export async function extendStorePlanAction(input: {
+  storeId: number;
+}): Promise<{ ok: true; planExpiresAt: string }> {
+  await requirePlatformAdmin();
+  const db = await getDb();
+  const store = await loadStore(db, input.storeId);
+  if (!store) throw new Error("Store not found.");
+  if (store.planId === "free") {
+    throw new Error(
+      "Free plans have no expiry to extend. Set the store to a paid plan first.",
+    );
+  }
+  const now = new Date();
+  const base =
+    store.planExpiresAt && store.planExpiresAt.getTime() > now.getTime()
+      ? store.planExpiresAt
+      : now;
+  const next = new Date(base.getTime());
+  next.setMonth(next.getMonth() + 1);
+  await db
+    .update(t.stores)
+    .set({ planExpiresAt: next })
+    .where(eq(t.stores.id, input.storeId));
+  return { ok: true as const, planExpiresAt: next.toISOString() };
 }
 
 export async function platformSetStoreStatus(input: {
