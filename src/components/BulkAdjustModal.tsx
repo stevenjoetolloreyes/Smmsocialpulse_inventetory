@@ -6,6 +6,7 @@ import { EmptyState, Icon, Modal, btnGhost, btnPrimary, inputCls } from "./ui";
 import { ProductThumb } from "./Qr";
 import { fmtInt } from "@/lib/format";
 import { recordMovement } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
 
 /**
  * Multi-product stock adjustment: type a target counted quantity per product
@@ -36,12 +37,14 @@ export function BulkAdjustModal({ open, onClose }: { open: boolean; onClose: () 
     let done = 0;
     try {
       for (const c of changes) {
-        await recordMovement({
-          itemId: c.product.id,
-          type: "adjust",
-          quantity: c.target,
-          note: note.trim() || "Bulk adjustment",
-        });
+        unwrapActionResult(
+          await recordMovement({
+            itemId: c.product.id,
+            type: "adjust",
+            quantity: c.target,
+            note: note.trim() || "Bulk adjustment",
+          }),
+        );
         done++;
       }
       await refresh();

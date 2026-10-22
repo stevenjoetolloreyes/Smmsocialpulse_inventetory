@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { requestPasswordResetAction } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
 import { Icon } from "./ui";
 import {
   AuthError,
@@ -23,7 +24,7 @@ export function ForgotPasswordForm() {
     setError("");
     setBusy(true);
     try {
-      const r = await requestPasswordResetAction(email);
+      const r = unwrapActionResult(await requestPasswordResetAction(email));
       setResult(r);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

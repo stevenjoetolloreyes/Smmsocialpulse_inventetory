@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { getAuthBranding, registerAction } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
 import { Icon } from "@/components/ui";
 import {
   AuthCard,
@@ -39,7 +40,8 @@ export default function RegisterPage() {
   useEffect(() => {
     let cancelled = false;
     getAuthBranding()
-      .then((b) => {
+      .then((raw) => {
+        const b = unwrapActionResult(raw);
         if (!cancelled) {
           setBranding({
             googleEnabled: b.googleEnabled,
@@ -68,7 +70,7 @@ export default function RegisterPage() {
     }
     setBusy(true);
     try {
-      const r = await registerAction({ storeName, username, email, password });
+      const r = unwrapActionResult(await registerAction({ storeName, username, email, password }));
       setDone({ emailSent: r.emailSent, verifyUrl: r.verifyUrl });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed.");

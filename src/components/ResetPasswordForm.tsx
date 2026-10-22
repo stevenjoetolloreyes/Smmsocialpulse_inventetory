@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { resetPasswordAction } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
 import { Icon } from "./ui";
 import {
   AuthError,
@@ -49,7 +50,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     }
     setBusy(true);
     try {
-      await resetPasswordAction(token, password);
+      unwrapActionResult(await resetPasswordAction(token, password));
       router.push("/login?reset=1");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reset failed.");

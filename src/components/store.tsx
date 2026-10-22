@@ -12,6 +12,8 @@ import {
 import type { SessionUser } from "@/lib/auth";
 import type { StoreData } from "@/lib/types";
 import { fetchStoreData, logoutAction } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
+import type { ActionErrorResult } from "@/lib/actionResult";
 
 export type ViewKey =
   | "dashboard"
@@ -39,7 +41,7 @@ type StoreCtx = {
   data: StoreData;
   refresh: () => Promise<void>;
   busy: boolean;
-  run: <T,>(fn: () => Promise<T>) => Promise<T>;
+  run: <T,>(fn: () => Promise<T | ActionErrorResult>) => Promise<T>;
   view: ViewKey;
   setView: (v: ViewKey) => void;
   selectedProductId: number | null;
@@ -78,7 +80,7 @@ export function StoreProvider({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
-    const fresh = await fetchStoreData();
+    const fresh = unwrapActionResult(await fetchStoreData());
     setData(fresh);
   }, []);
 
@@ -90,10 +92,10 @@ export function StoreProvider({
 
   /** Runs a server action, refreshes the snapshot, surfaces errors as a toast. */
   const run = useCallback(
-    async <T,>(fn: () => Promise<T>): Promise<T> => {
+    async <T,>(fn: () => Promise<T | ActionErrorResult>): Promise<T> => {
       setBusy(true);
       try {
-        const result = await fn();
+        const result = unwrapActionResult(await fn());
         await refresh();
         return result;
       } catch (e) {
@@ -117,7 +119,7 @@ export function StoreProvider({
   }, []);
 
   const logout = useCallback(async () => {
-    await logoutAction();
+    unwrapActionResult(await logoutAction());
     window.location.href = "/login";
   }, []);
 

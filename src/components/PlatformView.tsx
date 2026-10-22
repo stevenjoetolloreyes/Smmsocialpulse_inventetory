@@ -8,6 +8,7 @@ import {
   platformSetPlan,
   platformSetStoreStatus,
 } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
 import type { PlatformDataDTO } from "@/lib/types";
 import { fmtDate, fmtDateTime, peso } from "@/lib/format";
 import { Badge, Card, EmptyState, Icon, Modal, SectionTitle, btnGhost, btnPrimary, inputCls, labelCls } from "./ui";
@@ -49,12 +50,12 @@ export function PlatformView({
     currentExpiresAt: string;
   } | null>(null);
 
-  const refresh = async () => setData(await fetchPlatformData());
+  const refresh = async () => setData(unwrapActionResult(await fetchPlatformData()));
 
   const run = async (fn: () => Promise<unknown>, okMsg: string) => {
     setBusy(true);
     try {
-      await fn();
+      unwrapActionResult(await fn());
       await refresh();
       setToast(okMsg);
     } catch (e) {
@@ -66,7 +67,7 @@ export function PlatformView({
   };
 
   const logout = async () => {
-    await logoutAction();
+    unwrapActionResult(await logoutAction());
     window.location.href = "/login";
   };
 
@@ -367,13 +368,15 @@ export function PlatformView({
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
-                    await platformSetPlan({
-                      storeId: planEdit.storeId,
-                      planId: planEdit.planId,
-                      expiresAt: planEdit.expiresAt
-                        ? new Date(`${planEdit.expiresAt}T23:59:59`).toISOString()
-                        : null,
-                    });
+                    unwrapActionResult(
+                      await platformSetPlan({
+                        storeId: planEdit.storeId,
+                        planId: planEdit.planId,
+                        expiresAt: planEdit.expiresAt
+                          ? new Date(`${planEdit.expiresAt}T23:59:59`).toISOString()
+                          : null,
+                      }),
+                    );
                     setPlanEdit(null);
                   }, `Plan updated for ${planEdit.storeName}.`)
                 }

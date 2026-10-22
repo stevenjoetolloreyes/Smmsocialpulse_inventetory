@@ -22,6 +22,7 @@ import type {
   UnitInput,
 } from "@/lib/types";
 import { getStoreData } from "./data";
+import type { ActionErrorResult } from "@/lib/actionResult";
 import {
   addHistory,
   addMovement,
@@ -53,6 +54,41 @@ import {
   type StaffRow,
   type StoreRow,
 } from "./helpers";
+
+/**
+ * Wraps an action implementation so a thrown user-facing Error is
+ * RETURNED to the client as data (`{ __actionError: message }`) instead
+ * of crossing the wire as a thrown error — Next.js redacts thrown
+ * server-action errors in production builds, which hid every friendly
+ * message behind "An error occurred in the Server Components render…".
+ * The real message still exists here on the server, so it is caught
+ * here. Next.js navigation signals (redirect / not-found, identified by
+ * their digest) and non-Error throwables are rethrown untouched.
+ * Client call sites recover the message via `unwrapActionResult`.
+ */
+export type { ActionErrorResult };
+
+function safeAction<A extends unknown[], R>(
+  fn: (...args: A) => Promise<R>,
+): (...args: A) => Promise<R | ActionErrorResult> {
+  return async (...args: A): Promise<R | ActionErrorResult> => {
+    try {
+      return await fn(...args);
+    } catch (err) {
+      const digest = (err as { digest?: unknown } | null)?.digest;
+      if (
+        typeof digest === "string" &&
+        (digest.startsWith("NEXT_REDIRECT") || digest.startsWith("NEXT_NOT_FOUND"))
+      ) {
+        throw err;
+      }
+      if (err instanceof Error) {
+        return { __actionError: err.message };
+      }
+      throw err;
+    }
+  };
+}
 
 /* ---------------- auth ---------------- */
 
@@ -108,7 +144,7 @@ function assertValidUsername(username: string): void {
  * Unverified accounts (self-registered owners) are blocked until their
  * email is verified; suspended stores cannot sign in at all.
  */
-export async function loginAction(
+async function loginActionImpl(
   identifier: string,
   password: string,
   mode: LoginMode = "owner",
@@ -229,7 +265,7 @@ export async function loginAction(
  * area never mixes with store accounts. Reuses the same session cookie
  * machinery as the store sign-in.
  */
-export async function adminLoginAction(
+async function adminLoginActionImpl(
   username: string,
   password: string,
 ): Promise<{ user: SessionUser }> {
@@ -277,7 +313,7 @@ export async function adminLoginAction(
  * account by clicking the emailed verification link; when no mailer is
  * configured the link is returned for on-screen display (setup mode).
  */
-export async function registerAction(input: {
+async function registerActionImpl(input: {
   storeName: string;
   username: string;
   email: string;
@@ -363,7 +399,7 @@ export async function registerAction(input: {
 }
 
 /** Re-issues a verification email for an unverified account (login page). */
-export async function resendVerificationAction(
+async function resendVerificationActionImpl(
   identifier: string,
 ): Promise<{ ok: true; emailSent: boolean; verifyUrl: string | null }> {
   const db = await getDb();
@@ -385,7 +421,7 @@ export async function resendVerificationAction(
 }
 
 /** Starts the forgot-password flow for the account holding `email`. */
-export async function requestPasswordResetAction(
+async function requestPasswordResetActionImpl(
   email: string,
 ): Promise<{ ok: true; emailSent: boolean; resetUrl: string | null }> {
   const db = await getDb();
@@ -406,7 +442,7 @@ export async function requestPasswordResetAction(
 }
 
 /** Completes a password reset: token is single-use with a 1-hour expiry. */
-export async function resetPasswordAction(
+async function resetPasswordActionImpl(
   token: string,
   newPassword: string,
 ): Promise<{ ok: true }> {
@@ -432,7 +468,7 @@ export async function resetPasswordAction(
  * platform operator configured the matching provider credentials). The
  * heading is generic now that many stores share one platform.
  */
-export async function getAuthBranding(): Promise<{
+async function getAuthBrandingImpl(): Promise<{
   storeName: string;
   googleEnabled: boolean;
   facebookEnabled: boolean;
@@ -444,20 +480,20 @@ export async function getAuthBranding(): Promise<{
   };
 }
 
-export async function logoutAction(): Promise<{ ok: true }> {
+async function logoutActionImpl(): Promise<{ ok: true }> {
   await clearSessionCookie();
   return { ok: true as const };
 }
 
 /* ---------------- data ---------------- */
 
-export async function fetchStoreData() {
+async function fetchStoreDataImpl() {
   const { storeId } = await requireStoreSession();
   const db = await getDb();
   return getStoreData(db, storeId);
 }
 
-export async function findByCode(code: string) {
+async function findByCodeImpl(code: string) {
   const { storeId } = await requireStoreSession();
   const db = await getDb();
   const needle = code.trim().toLowerCase();
@@ -476,7 +512,7 @@ export async function findByCode(code: string) {
   return found ?? null;
 }
 
-export async function suggestItemCode(): Promise<{ code: string }> {
+async function suggestItemCodeImpl(): Promise<{ code: string }> {
   const { storeId } = await requireStoreSession();
   const db = await getDb();
   const rows = await db
@@ -488,7 +524,7 @@ export async function suggestItemCode(): Promise<{ code: string }> {
 
 /* ---------------- feedback (floating help button) ---------------- */
 
-export async function submitFeedbackAction(
+async function submitFeedbackActionImpl(
   type: string,
   message: string,
 ): Promise<{ ok: true }> {
@@ -510,7 +546,7 @@ export async function submitFeedbackAction(
 
 /* ---------------- store setup wizard ---------------- */
 
-export async function completeStoreSetup(input: {
+async function completeStoreSetupImpl(input: {
   storeName: string;
   address: string;
   city: string;
@@ -605,7 +641,7 @@ async function storeAndPlan(storeId: number) {
   return { db, store, plan };
 }
 
-export async function saveProduct(input: ProductFormInput): Promise<{ ok: true; id: number }> {
+async function saveProductImpl(input: ProductFormInput): Promise<{ ok: true; id: number }> {
   const { user, storeId } = await requireStoreSession();
   const { db, plan } = await storeAndPlan(storeId);
   const actor = user.name;
@@ -751,7 +787,7 @@ export async function saveProduct(input: ProductFormInput): Promise<{ ok: true; 
   return { ok: true as const, id: row.id };
 }
 
-export async function deleteProduct(id: number): Promise<{ ok: true }> {
+async function deleteProductImpl(id: number): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const row = await getStoreItem(db, storeId, id);
@@ -772,7 +808,7 @@ export async function deleteProduct(id: number): Promise<{ ok: true }> {
   return { ok: true as const };
 }
 
-export async function permanentDeleteProduct(id: number): Promise<{ ok: true }> {
+async function permanentDeleteProductImpl(id: number): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const row = await getStoreItem(db, storeId, id);
@@ -798,7 +834,7 @@ export async function permanentDeleteProduct(id: number): Promise<{ ok: true }> 
   return { ok: true as const };
 }
 
-export async function restoreProduct(id: number): Promise<{ ok: true }> {
+async function restoreProductImpl(id: number): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const row = await getStoreItem(db, storeId, id);
@@ -819,7 +855,7 @@ export async function restoreProduct(id: number): Promise<{ ok: true }> {
   return { ok: true as const };
 }
 
-export async function setProductStatus(id: number, status: string): Promise<{ ok: true }> {
+async function setProductStatusImpl(id: number, status: string): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const row = await getStoreItem(db, storeId, id);
@@ -839,7 +875,7 @@ export async function setProductStatus(id: number, status: string): Promise<{ ok
   return { ok: true as const };
 }
 
-export async function saveCategory(name: string): Promise<{ ok: true }> {
+async function saveCategoryImpl(name: string): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const trimmed = name.trim();
@@ -860,7 +896,7 @@ export async function saveCategory(name: string): Promise<{ ok: true }> {
 
 /* ---------------- stock movements (Scan view) ---------------- */
 
-export async function recordMovement(input: {
+async function recordMovementImpl(input: {
   itemId: number;
   type: "in" | "out" | "adjust";
   quantity: number;
@@ -967,7 +1003,7 @@ async function batchAndItem(db: Awaited<ReturnType<typeof getDb>>, storeId: numb
   return { batch, item };
 }
 
-export async function adjustBatch(input: {
+async function adjustBatchImpl(input: {
   batchId: number;
   newQty: number;
   note: string;
@@ -1004,7 +1040,7 @@ export async function adjustBatch(input: {
   return { ok: true as const };
 }
 
-export async function setBatchStatus(
+async function setBatchStatusImpl(
   batchId: number,
   status: "active" | "expired" | "recalled" | "damaged" | "archived",
 ): Promise<{ ok: true }> {
@@ -1037,7 +1073,7 @@ export async function setBatchStatus(
   return { ok: true as const };
 }
 
-export async function setBatchPlaced(batchId: number, placed: boolean): Promise<{ ok: true }> {
+async function setBatchPlacedImpl(batchId: number, placed: boolean): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const { batch } = await batchAndItem(db, storeId, batchId);
@@ -1056,7 +1092,7 @@ export async function setBatchPlaced(batchId: number, placed: boolean): Promise<
   return { ok: true as const };
 }
 
-export async function updateBatchDetails(input: {
+async function updateBatchDetailsImpl(input: {
   batchId: number;
   defectiveQty: number;
   boxStatus: string;
@@ -1086,7 +1122,7 @@ export async function updateBatchDetails(input: {
 
 /* ---------------- receiving & bulk restock ---------------- */
 
-export async function addReceiving(input: {
+async function addReceivingImpl(input: {
   itemId: number;
   supplierId: number | null;
   invoiceNo: string;
@@ -1162,7 +1198,7 @@ export async function addReceiving(input: {
   return { ok: true as const };
 }
 
-export async function bulkRestock(input: {
+async function bulkRestockImpl(input: {
   entries: { itemId: number; qty: number; costPrice: number; expiryDate: string | null }[];
   note: string;
 }): Promise<{ ok: true }> {
@@ -1206,7 +1242,7 @@ export async function bulkRestock(input: {
 
 /* ---------------- suppliers ---------------- */
 
-export async function saveSupplier(input: {
+async function saveSupplierImpl(input: {
   id: number | null;
   name: string;
   contactPerson: string;
@@ -1270,7 +1306,7 @@ export async function saveSupplier(input: {
   return { ok: true as const, id: row.id };
 }
 
-export async function deleteSupplier(id: number): Promise<{ ok: true }> {
+async function deleteSupplierImpl(id: number): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const [row] = await db.select().from(t.suppliers).where(eq(t.suppliers.id, id));
@@ -1290,7 +1326,7 @@ export async function deleteSupplier(id: number): Promise<{ ok: true }> {
 
 /* ---------------- sales (POS) ---------------- */
 
-export async function completeSale(input: {
+async function completeSaleImpl(input: {
   lines: { itemId: number; unitName: string; qty: number }[];
   customerType: "Regular" | "PWD" | "Senior";
   paymentMethod: "Cash" | "GCash";
@@ -1439,7 +1475,7 @@ export async function completeSale(input: {
   return { ok: true as const, saleId: sale.id };
 }
 
-export async function recordReturn(input: {
+async function recordReturnImpl(input: {
   saleId: number;
   lines: { saleItemId: number; qtyUnits: number }[];
   note: string;
@@ -1530,7 +1566,7 @@ export async function recordReturn(input: {
 
 /* ---------------- CSV import ---------------- */
 
-export async function importProducts(
+async function importProductsImpl(
   rows: ImportRow[],
 ): Promise<{ ok: true; imported: number; skipped: number; errors: string[] }> {
   const { user, storeId } = await requireStoreSession();
@@ -1642,7 +1678,7 @@ export async function importProducts(
  * plan feature, so the gate is enforced here — not just by hiding the
  * button in the UI.
  */
-export async function exportInventoryReportCsvAction(): Promise<{ ok: true; csv: string }> {
+async function exportInventoryReportCsvActionImpl(): Promise<{ ok: true; csv: string }> {
   const { storeId } = await requireStoreSession();
   const { db, plan } = await storeAndPlan(storeId);
   requirePlanFeature(plan, "reportExport");
@@ -1675,7 +1711,7 @@ export async function exportInventoryReportCsvAction(): Promise<{ ok: true; csv:
 
 /* ---------------- settings, staff, areas ---------------- */
 
-export async function saveSettings(input: SettingsDTO): Promise<{ ok: true }> {
+async function saveSettingsImpl(input: SettingsDTO): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const logoData = (input.logoData ?? "").trim();
@@ -1717,7 +1753,7 @@ export async function saveSettings(input: SettingsDTO): Promise<{ ok: true }> {
   return { ok: true as const };
 }
 
-export async function saveStaff(input: {
+async function saveStaffImpl(input: {
   id: number | null;
   name: string;
   username: string;
@@ -1820,7 +1856,7 @@ export async function saveStaff(input: {
   return { ok: true as const };
 }
 
-export async function saveArea(name: string): Promise<{ ok: true }> {
+async function saveAreaImpl(name: string): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const trimmed = name.trim();
@@ -1839,7 +1875,7 @@ export async function saveArea(name: string): Promise<{ ok: true }> {
   return { ok: true as const };
 }
 
-export async function deleteArea(name: string): Promise<{ ok: true }> {
+async function deleteAreaImpl(name: string): Promise<{ ok: true }> {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   const rows = await db.select().from(t.areas).where(eq(t.areas.storeId, storeId));
@@ -1862,7 +1898,7 @@ export async function deleteArea(name: string): Promise<{ ok: true }> {
  * metadata (plan, status, user counts) and the feedback inbox — never a
  * store's products, sales or inventory. */
 
-export async function fetchPlatformData(): Promise<PlatformDataDTO> {
+async function fetchPlatformDataImpl(): Promise<PlatformDataDTO> {
   await requirePlatformAdmin();
   const db = await getDb();
   const storeRows = await db.select().from(t.stores);
@@ -1921,7 +1957,7 @@ export async function fetchPlatformData(): Promise<PlatformDataDTO> {
   };
 }
 
-export async function platformSetPlan(input: {
+async function platformSetPlanImpl(input: {
   storeId: number;
   planId: string;
   expiresAt: string | null; // ISO date or null = no expiry
@@ -1954,7 +1990,7 @@ export async function platformSetPlan(input: {
  * from plan_expires_at the paid plan becomes active again. The plan
  * itself never changes here, only the expiry.
  */
-export async function extendStorePlanAction(input: {
+async function extendStorePlanActionImpl(input: {
   storeId: number;
 }): Promise<{ ok: true; planExpiresAt: string }> {
   await requirePlatformAdmin();
@@ -1980,7 +2016,7 @@ export async function extendStorePlanAction(input: {
   return { ok: true as const, planExpiresAt: next.toISOString() };
 }
 
-export async function platformSetStoreStatus(input: {
+async function platformSetStoreStatusImpl(input: {
   storeId: number;
   status: "active" | "suspended";
 }): Promise<{ ok: true }> {
@@ -1997,3 +2033,46 @@ export async function platformSetStoreStatus(input: {
     .where(eq(t.stores.id, input.storeId));
   return { ok: true as const };
 }
+
+/* ---------------- public actions (error-as-data wrappers) ---------------- */
+
+export const loginAction = safeAction(loginActionImpl);
+export const adminLoginAction = safeAction(adminLoginActionImpl);
+export const registerAction = safeAction(registerActionImpl);
+export const resendVerificationAction = safeAction(resendVerificationActionImpl);
+export const requestPasswordResetAction = safeAction(requestPasswordResetActionImpl);
+export const resetPasswordAction = safeAction(resetPasswordActionImpl);
+export const getAuthBranding = safeAction(getAuthBrandingImpl);
+export const logoutAction = safeAction(logoutActionImpl);
+export const fetchStoreData = safeAction(fetchStoreDataImpl);
+export const findByCode = safeAction(findByCodeImpl);
+export const suggestItemCode = safeAction(suggestItemCodeImpl);
+export const submitFeedbackAction = safeAction(submitFeedbackActionImpl);
+export const completeStoreSetup = safeAction(completeStoreSetupImpl);
+export const saveProduct = safeAction(saveProductImpl);
+export const deleteProduct = safeAction(deleteProductImpl);
+export const permanentDeleteProduct = safeAction(permanentDeleteProductImpl);
+export const restoreProduct = safeAction(restoreProductImpl);
+export const setProductStatus = safeAction(setProductStatusImpl);
+export const saveCategory = safeAction(saveCategoryImpl);
+export const recordMovement = safeAction(recordMovementImpl);
+export const adjustBatch = safeAction(adjustBatchImpl);
+export const setBatchStatus = safeAction(setBatchStatusImpl);
+export const setBatchPlaced = safeAction(setBatchPlacedImpl);
+export const updateBatchDetails = safeAction(updateBatchDetailsImpl);
+export const addReceiving = safeAction(addReceivingImpl);
+export const bulkRestock = safeAction(bulkRestockImpl);
+export const saveSupplier = safeAction(saveSupplierImpl);
+export const deleteSupplier = safeAction(deleteSupplierImpl);
+export const completeSale = safeAction(completeSaleImpl);
+export const recordReturn = safeAction(recordReturnImpl);
+export const importProducts = safeAction(importProductsImpl);
+export const exportInventoryReportCsvAction = safeAction(exportInventoryReportCsvActionImpl);
+export const saveSettings = safeAction(saveSettingsImpl);
+export const saveStaff = safeAction(saveStaffImpl);
+export const saveArea = safeAction(saveAreaImpl);
+export const deleteArea = safeAction(deleteAreaImpl);
+export const fetchPlatformData = safeAction(fetchPlatformDataImpl);
+export const platformSetPlan = safeAction(platformSetPlanImpl);
+export const extendStorePlanAction = safeAction(extendStorePlanActionImpl);
+export const platformSetStoreStatus = safeAction(platformSetStoreStatusImpl);

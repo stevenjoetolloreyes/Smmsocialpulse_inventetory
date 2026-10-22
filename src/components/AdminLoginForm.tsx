@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { adminLoginAction } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
 import { Icon } from "@/components/ui";
 import {
   AuthCard,
@@ -37,7 +38,7 @@ export function AdminLoginForm() {
     setError("");
     setBusy(true);
     try {
-      await adminLoginAction(username, password);
+      unwrapActionResult(await adminLoginAction(username, password));
       router.push("/admin");
       router.refresh();
     } catch (err) {

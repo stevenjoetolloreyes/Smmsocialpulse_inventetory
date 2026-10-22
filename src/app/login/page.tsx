@@ -10,6 +10,7 @@ import {
   type LoginMode,
 } from "@/server/actions";
 import { Icon } from "@/components/ui";
+import { unwrapActionResult } from "@/lib/actionResult";
 import {
   AuthCard,
   AuthError,
@@ -69,7 +70,7 @@ export default function LoginPage() {
     let cancelled = false;
     getAuthBranding()
       .then((b) => {
-        if (!cancelled) setBranding(b);
+        if (!cancelled) setBranding(unwrapActionResult(b));
       })
       .catch(() => {
         /* keep defaults */
@@ -91,7 +92,7 @@ export default function LoginPage() {
     setResend(null);
     setBusy(true);
     try {
-      await loginAction(identifier, ownerPw, "owner", "", rememberMe);
+      unwrapActionResult(await loginAction(identifier, ownerPw, "owner", "", rememberMe));
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -106,7 +107,7 @@ export default function LoginPage() {
     setResend(null);
     setBusy(true);
     try {
-      await loginAction(staffUsername, staffPw, "staff", storeCode, rememberMe);
+      unwrapActionResult(await loginAction(staffUsername, staffPw, "staff", storeCode, rememberMe));
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -119,7 +120,7 @@ export default function LoginPage() {
   const doResend = async () => {
     setResending(true);
     try {
-      const r = await resendVerificationAction(identifier || staffUsername);
+      const r = unwrapActionResult(await resendVerificationAction(identifier || staffUsername));
       setResend(r);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not resend the verification email.");

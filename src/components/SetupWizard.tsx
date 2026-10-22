@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { completeStoreSetup, logoutAction } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
 import { Icon } from "./ui";
 import { AuthBackground, AuthError } from "./AuthShell";
 
@@ -78,7 +79,7 @@ export function SetupWizard({
     setError("");
     setBusy(true);
     try {
-      await completeStoreSetup({ ...form, logoData });
+      unwrapActionResult(await completeStoreSetup({ ...form, logoData }));
       router.push("/?setup=done");
       router.refresh();
     } catch (err) {
@@ -88,7 +89,7 @@ export function SetupWizard({
   };
 
   const logout = async () => {
-    await logoutAction();
+    unwrapActionResult(await logoutAction());
     window.location.href = "/login";
   };
 

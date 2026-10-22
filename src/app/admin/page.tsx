@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { fetchPlatformData } from "@/server/actions";
+import { unwrapActionResult } from "@/lib/actionResult";
 import { PlatformView } from "@/components/PlatformView";
 import { AdminLoginForm } from "@/components/AdminLoginForm";
 
@@ -15,6 +16,6 @@ export default async function AdminPage() {
   const session = await getSession();
   if (!session) return <AdminLoginForm />;
   if (!session.isPlatformAdmin) redirect("/");
-  const data = await fetchPlatformData();
+  const data = unwrapActionResult(await fetchPlatformData());
   return <PlatformView userName={session.name} initialData={data} />;
 }
