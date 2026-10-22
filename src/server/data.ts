@@ -1,16 +1,28 @@
-import { asc, desc } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import type { DB } from "@/lib/db";
 import * as t from "@/lib/schema";
 import type { StoreData } from "@/lib/types";
-import { loadProducts, loadSettings } from "./helpers";
+import {
+  loadEffectivePlan,
+  loadPlans,
+  loadProducts,
+  loadSettings,
+  loadStore,
+  toPlanDTO,
+  toStoreMeta,
+} from "./helpers";
 
-/** Loads everything the client UI needs in one snapshot. */
-export async function getStoreData(db: DB): Promise<StoreData> {
-  const allProducts = await loadProducts(db);
+/** Loads everything one store's client UI needs in one snapshot. */
+export async function getStoreData(db: DB, storeId: number): Promise<StoreData> {
+  const allProducts = await loadProducts(db, storeId);
   const products = allProducts.filter((p) => !p.deletedAt);
   const deletedProducts = allProducts.filter((p) => p.deletedAt);
 
-  const supplierRows = await db.select().from(t.suppliers).orderBy(asc(t.suppliers.name));
+  const supplierRows = await db
+    .select()
+    .from(t.suppliers)
+    .where(eq(t.suppliers.storeId, storeId))
+    .orderBy(asc(t.suppliers.name));
   const suppliers = supplierRows.map((s) => ({
     id: s.id,
     name: s.name,
@@ -28,7 +40,11 @@ export async function getStoreData(db: DB): Promise<StoreData> {
     allProducts.flatMap((p) => p.batches.map((b) => [b.id, b] as const)),
   );
 
-  const recRows = await db.select().from(t.receivings).orderBy(desc(t.receivings.id));
+  const recRows = await db
+    .select()
+    .from(t.receivings)
+    .where(eq(t.receivings.storeId, storeId))
+    .orderBy(desc(t.receivings.id));
   const receivings = recRows.map((r) => {
     const batch = batchById.get(r.batchId);
     // Display status is derived from how much of the batch is still on hand.
@@ -57,9 +73,19 @@ export async function getStoreData(db: DB): Promise<StoreData> {
     };
   });
 
-  const saleRows = await db.select().from(t.sales).orderBy(desc(t.sales.id));
-  const saleItemRows = await db.select().from(t.saleItems);
-  const allocRows = await db.select().from(t.saleAllocations);
+  const saleRows = await db
+    .select()
+    .from(t.sales)
+    .where(eq(t.sales.storeId, storeId))
+    .orderBy(desc(t.sales.id));
+  const saleItemRows = await db
+    .select()
+    .from(t.saleItems)
+    .where(eq(t.saleItems.storeId, storeId));
+  const allocRows = await db
+    .select()
+    .from(t.saleAllocations)
+    .where(eq(t.saleAllocations.storeId, storeId));
   const sales = saleRows.map((s) => ({
     id: s.id,
     orNumber: s.orNumber,
@@ -104,7 +130,11 @@ export async function getStoreData(db: DB): Promise<StoreData> {
 
   const saleById = new Map(sales.map((s) => [s.id, s]));
   const saleItemById = new Map(sales.flatMap((s) => s.items.map((i) => [i.id, i] as const)));
-  const returnRows = await db.select().from(t.saleReturns).orderBy(desc(t.saleReturns.id));
+  const returnRows = await db
+    .select()
+    .from(t.saleReturns)
+    .where(eq(t.saleReturns.storeId, storeId))
+    .orderBy(desc(t.saleReturns.id));
   const returns = returnRows.map((r) => ({
     id: r.id,
     saleId: r.saleId,
@@ -122,6 +152,7 @@ export async function getStoreData(db: DB): Promise<StoreData> {
   const movementRows = await db
     .select()
     .from(t.movements)
+    .where(eq(t.movements.storeId, storeId))
     .orderBy(desc(t.movements.id))
     .limit(500);
   const movements = movementRows.map((m) => ({
@@ -139,7 +170,12 @@ export async function getStoreData(db: DB): Promise<StoreData> {
     createdAt: m.createdAt.toISOString(),
   }));
 
-  const histRows = await db.select().from(t.history).orderBy(desc(t.history.id)).limit(1000);
+  const histRows = await db
+    .select()
+    .from(t.history)
+    .where(eq(t.history.storeId, storeId))
+    .orderBy(desc(t.history.id))
+    .limit(1000);
   const history = histRows.map((h) => ({
     id: h.id,
     action: h.action,
@@ -151,9 +187,13 @@ export async function getStoreData(db: DB): Promise<StoreData> {
     createdAt: h.createdAt.toISOString(),
   }));
 
-  const settings = await loadSettings(db);
+  const settings = await loadSettings(db, storeId);
 
-  const staffRows = await db.select().from(t.staff).orderBy(asc(t.staff.name));
+  const staffRows = await db
+    .select()
+    .from(t.staff)
+    .where(eq(t.staff.storeId, storeId))
+    .orderBy(asc(t.staff.name));
   const staffList = staffRows.map((s) => ({
     id: s.id,
     name: s.name,
@@ -166,13 +206,22 @@ export async function getStoreData(db: DB): Promise<StoreData> {
   }));
 
   const catSet = new Set<string>();
-  for (const c of await db.select().from(t.categories)) catSet.add(c.name);
+  for (const c of await db.select().from(t.categories).where(eq(t.categories.storeId, storeId))) {
+    catSet.add(c.name);
+  }
   for (const p of allProducts) if (p.category) catSet.add(p.category);
 
   const areaSet = new Set<string>();
-  for (const a of await db.select().from(t.areas)) areaSet.add(a.name);
+  for (const a of await db.select().from(t.areas).where(eq(t.areas.storeId, storeId))) {
+    areaSet.add(a.name);
+  }
   for (const p of allProducts) if (p.area) areaSet.add(p.area);
   for (const b of allProducts.flatMap((p) => p.batches)) if (b.area) areaSet.add(b.area);
+
+  const store = await loadStore(db, storeId);
+  if (!store) throw new Error("Store not found.");
+  const plan = await loadEffectivePlan(db, store);
+  const plans = (await loadPlans(db)).map(toPlanDTO);
 
   return {
     products,
@@ -187,5 +236,8 @@ export async function getStoreData(db: DB): Promise<StoreData> {
     staff: staffList,
     categories: Array.from(catSet).sort(),
     areas: Array.from(areaSet).sort(),
+    store: toStoreMeta(store),
+    plan,
+    plans,
   };
 }

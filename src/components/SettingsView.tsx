@@ -97,6 +97,56 @@ function GeneralTab() {
             <textarea className={inputCls} rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} />
           </div>
           <div>
+            <label className={labelCls}>City</label>
+            <input className={inputCls} value={form.city} onChange={(e) => set("city", e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Province</label>
+            <input className={inputCls} value={form.province} onChange={(e) => set("province", e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>ZIP code</label>
+            <input className={inputCls} value={form.zip} onChange={(e) => set("zip", e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Store logo image (optional)</label>
+            <div className="flex items-center gap-2.5">
+              {form.logoData ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.logoData} alt="" className="h-9 w-9 rounded-lg object-cover ring-1 ring-stone-200" />
+              ) : (
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-stone-100 text-stone-400">
+                  <Icon name="image" />
+                </span>
+              )}
+              <label className={`${btnGhost} cursor-pointer`}>
+                <Icon name="upload" /> Upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 200 * 1024) {
+                      showToast("Logo image must be under 200 KB.");
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () =>
+                      set("logoData", typeof reader.result === "string" ? reader.result : "");
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </label>
+              {form.logoData && (
+                <button className={btnGhost} onClick={() => set("logoData", "")}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+          <div>
             <label className={labelCls}>Logo initials (receipts & sidebar)</label>
             <input className={inputCls} maxLength={3} value={form.logoText} onChange={(e) => set("logoText", e.target.value.toUpperCase())} />
           </div>

@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import { useStore } from "./store";
 import { Card, EmptyState, Icon, SectionTitle, btnPrimary, inputCls, labelCls } from "./ui";
-import { csvEscape, daysUntil, downloadTextFile, fmtExpiry, fmtInt, peso, stockStatus } from "@/lib/format";
+import { daysUntil, downloadTextFile, fmtExpiry, fmtInt, peso, stockStatus } from "@/lib/format";
+import { exportInventoryReportCsvAction } from "@/server/actions";
 
 type StatusFilter = "All" | "In Stock" | "Low Stock" | "Out of Stock" | "Near Expiry" | "Expired";
 
 export function InventoryReport() {
-  const { data, openProduct } = useStore();
+  const { data, openProduct, run, showToast } = useStore();
   const { products, categories } = data;
   const [category, setCategory] = useState("All");
   const [status, setStatus] = useState<StatusFilter>("All");
@@ -61,31 +62,16 @@ export function InventoryReport() {
     return { units, cost, retail, near, expired };
   }, [rows, products]);
 
-  const exportCsv = () => {
-    const header = ["Product", "SKU", "Category", "Status", "Qty On Hand", "Unit", "Cost Price", "Selling Price", "Stock Value (Cost)", "Reorder Level", "Batches", "Nearest Expiry"];
-    const lines = rows.map((p) => {
-      const expiries = p.batches
-        .filter((b) => b.expiryDate && b.qtyRemaining > 0)
-        .map((b) => b.expiryDate!)
-        .sort();
-      return [
-        p.name,
-        p.code,
-        p.category,
-        p.productStatus,
-        p.quantity,
-        p.unit,
-        p.costPrice.toFixed(2),
-        p.sellingPrice.toFixed(2),
-        (p.quantity * p.costPrice).toFixed(2),
-        p.reorderLevel,
-        p.batchCount,
-        expiries[0] ?? "",
-      ]
-        .map(csvEscape)
-        .join(",");
-    });
-    downloadTextFile("inventory-report.csv", [header.join(","), ...lines].join("\n"));
+  // The CSV is built on the server: report export is a paid-plan feature
+  // and the gate is enforced in the action, not just by hiding this button.
+  const exportCsv = async () => {
+    try {
+      const { csv } = await run(() => exportInventoryReportCsvAction());
+      downloadTextFile("inventory-report.csv", csv);
+      showToast("Inventory report exported.");
+    } catch {
+      /* toasted by run() */
+    }
   };
 
   return (
@@ -113,9 +99,15 @@ export function InventoryReport() {
           icon="file-lines"
           title="Inventory Report"
           right={
-            <button className={btnPrimary} onClick={exportCsv} disabled={rows.length === 0}>
-              <Icon name="file-csv" /> Export CSV
-            </button>
+            data.plan.reportExport ? (
+              <button className={btnPrimary} onClick={() => void exportCsv()} disabled={rows.length === 0}>
+                <Icon name="file-csv" /> Export CSV
+              </button>
+            ) : (
+              <span className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-semibold text-stone-500">
+                CSV export is a Pro / Business feature — see Subscription
+              </span>
+            )
           }
         />
         <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

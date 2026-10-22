@@ -176,13 +176,37 @@ export type SettingsDTO = {
   storeName: string;
   phone: string;
   address: string;
+  city: string;
+  province: string;
+  zip: string;
   email: string;
   logoText: string;
+  logoData: string; // optional logo image (data URL), set in setup / settings
   storeCode: string;
   primaryColor: string;
   theme: string;
   dateFormat: string; // mdy | dmy | iso
   security: SecuritySettings;
+};
+
+export type PlanDTO = {
+  id: string; // free | pro | business
+  name: string;
+  priceMonthly: number;
+  maxUsers: number; // 0 = unlimited
+  imageUpload: boolean;
+  reportExport: boolean;
+};
+
+export type StoreMetaDTO = {
+  id: number;
+  name: string;
+  slug: string;
+  planId: string; // the plan on record
+  effectivePlanId: string; // after expiry fallback (expired paid plan → free)
+  planExpiresAt: string | null;
+  setupCompleted: boolean;
+  status: string; // active | suspended
 };
 
 export type StaffDTO = {
@@ -209,6 +233,42 @@ export type StoreData = {
   staff: StaffDTO[];
   categories: string[];
   areas: string[];
+  /** The signed-in user's store + its effective plan (multi-store SaaS). */
+  store: StoreMetaDTO;
+  plan: PlanDTO;
+  plans: PlanDTO[];
+};
+
+export type PlatformStoreDTO = {
+  id: number;
+  name: string;
+  slug: string;
+  ownerName: string;
+  ownerEmail: string;
+  planId: string;
+  planExpiresAt: string | null;
+  usersCount: number;
+  status: string;
+  setupCompleted: boolean;
+  createdAt: string;
+};
+
+export type FeedbackDTO = {
+  id: number;
+  storeId: number | null;
+  storeName: string;
+  staffName: string;
+  type: string; // issue | feature | feedback
+  message: string;
+  createdAt: string;
+};
+
+export type PlatformDataDTO = {
+  totalStores: number;
+  totalUsers: number;
+  perPlan: { planId: string; count: number }[];
+  stores: PlatformStoreDTO[];
+  feedback: FeedbackDTO[];
 };
 
 export type UnitInput = {

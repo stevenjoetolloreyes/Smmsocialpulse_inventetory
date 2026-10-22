@@ -19,6 +19,7 @@ import {
 } from "@/components/AuthShell";
 
 export default function RegisterPage() {
+  const [storeName, setStoreName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,7 +28,7 @@ export default function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<{ emailSent: boolean; verifyUrl: string | null } | null>(null);
   const capsOn = useCapsLock();
 
   const [branding, setBranding] = useState<{
@@ -67,8 +68,8 @@ export default function RegisterPage() {
     }
     setBusy(true);
     try {
-      await registerAction({ username, email, password });
-      setDone(true);
+      const r = await registerAction({ storeName, username, email, password });
+      setDone({ emailSent: r.emailSent, verifyUrl: r.verifyUrl });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed.");
       setBusy(false);
@@ -83,15 +84,34 @@ export default function RegisterPage() {
       {done ? (
         <div className="text-center">
           <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl text-green-700">
-            <Icon name="check" />
+            <Icon name="envelope-open-text" />
           </span>
-          <h2 className="text-lg font-bold text-stone-800">Account created</h2>
+          <h2 className="text-lg font-bold text-stone-800">Check your email to verify</h2>
           <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-stone-500">
-            Your account <strong className="text-stone-700">{username}</strong> was
-            created and is now <strong className="text-stone-700">waiting for the
-            store owner&apos;s activation</strong>. Once the owner activates it in
-            Settings → User Management, you can sign in from the Branch Staff tab.
+            Your store <strong className="text-stone-700">{storeName}</strong> and owner
+            account <strong className="text-stone-700">{username}</strong> were created on
+            the <strong className="text-stone-700">Free plan</strong>.
+            {done.emailSent ? (
+              <>
+                {" "}We sent a verification link to{" "}
+                <strong className="text-stone-700">{email}</strong> — click it within 24
+                hours to activate your account, then sign in to finish setting up your store.
+              </>
+            ) : (
+              <> Activate your account with the verification link below.</>
+            )}
           </p>
+          {!done.emailSent && done.verifyUrl && (
+            <div className="mx-auto mt-3 max-w-sm rounded-2xl bg-amber-50 px-4 py-3 text-left ring-1 ring-amber-200">
+              <p className="text-xs leading-relaxed text-amber-800">
+                Email sending is not configured on this platform yet (setup mode), so
+                here is your one-time verification link:
+              </p>
+              <a href={done.verifyUrl} className="mt-1.5 block break-all text-xs font-semibold text-amber-900 hover:underline">
+                {done.verifyUrl}
+              </a>
+            </div>
+          )}
           <Link href="/login" className={`${authPrimaryBtnCls} mt-5`}>
             Back to Sign in
           </Link>
@@ -99,7 +119,23 @@ export default function RegisterPage() {
       ) : (
         <>
           <form onSubmit={submit} autoComplete="off">
-            <label className={authLabelCls} htmlFor="reg-username">
+            <label className={authLabelCls} htmlFor="reg-store">
+              Store Name
+            </label>
+            <div className="relative">
+              <FieldIcon name="store" />
+              <input
+                id="reg-store"
+                className={authInputCls}
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                placeholder="e.g. Reyes Sari-Sari Store"
+                required
+                minLength={2}
+              />
+            </div>
+
+            <label className={`${authLabelCls} mt-4`} htmlFor="reg-username">
               Username
             </label>
             <div className="relative">
@@ -194,9 +230,9 @@ export default function RegisterPage() {
             </Link>
           </p>
           <p className="mt-3 text-center text-xs leading-relaxed text-stone-400">
-            New accounts start inactive. The store owner reviews each registration
-            and activates it before it can be used — registering never creates an
-            owner account.
+            Registering creates your own store on the Free plan with you as its owner.
+            Your account activates when you click the verification link we email you —
+            then a short setup wizard walks you through your store profile.
           </p>
         </>
       )}

@@ -3,13 +3,17 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 
 export const SESSION_COOKIE = "ims_session";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days (default validity)
+const REMEMBER_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days ("remember me")
 
 export type SessionUser = {
   id: number;
   name: string;
   username: string;
   role: string;
+  /** The store this user belongs to. NULL only for the platform admin. */
+  storeId: number | null;
+  isPlatformAdmin: boolean;
 };
 
 function secret(): string {
@@ -21,10 +25,10 @@ function sign(payload: string): string {
 }
 
 /** Creates the signed session cookie value for a signed-in staff member. */
-export function createSessionValue(user: SessionUser): string {
+export function createSessionValue(user: SessionUser, remember = false): string {
   const body = {
     ...user,
-    exp: Date.now() + SESSION_TTL_MS,
+    exp: Date.now() + (remember ? REMEMBER_TTL_MS : SESSION_TTL_MS),
   };
   const payload = Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
   return `${payload}.${sign(payload)}`;
@@ -40,9 +44,18 @@ function parseSessionValue(value: string | undefined): SessionUser | null {
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
     const body = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as
-      SessionUser & { exp: number };
+      Partial<SessionUser> & { exp: number; id: number; name: string; username: string; role: string };
     if (!body.exp || body.exp < Date.now()) return null;
-    return { id: body.id, name: body.name, username: body.username, role: body.role };
+    return {
+      id: body.id,
+      name: body.name,
+      username: body.username,
+      role: body.role,
+      // Cookies minted before multi-store lack these fields; treat them as
+      // legacy store-1 users so an in-flight session survives the upgrade.
+      storeId: body.storeId === undefined ? 1 : body.storeId,
+      isPlatformAdmin: body.isPlatformAdmin === true,
+    };
   } catch {
     return null;
   }
@@ -61,14 +74,46 @@ export async function requireSession(): Promise<SessionUser> {
   return user;
 }
 
-export async function setSessionCookie(user: SessionUser): Promise<void> {
+/**
+ * Throws unless the session belongs to a store user, and returns the
+ * session together with its store id. Every store-scoped action starts
+ * here — this is the single choke point that guarantees no cross-store
+ * reads or writes.
+ */
+export async function requireStoreSession(): Promise<{
+  user: SessionUser;
+  storeId: number;
+}> {
+  const user = await requireSession();
+  if (user.isPlatformAdmin || user.storeId == null) {
+    throw new Error(
+      "Platform admin accounts manage stores from the Platform page and do not hold store data.",
+    );
+  }
+  return { user, storeId: user.storeId };
+}
+
+/** Throws unless the session is the platform admin's. */
+export async function requirePlatformAdmin(): Promise<SessionUser> {
+  const user = await requireSession();
+  if (!user.isPlatformAdmin) {
+    throw new Error("This area is for the platform owner only.");
+  }
+  return user;
+}
+
+export async function setSessionCookie(user: SessionUser, remember = false): Promise<void> {
   const store = await cookies();
-  store.set(SESSION_COOKIE, createSessionValue(user), {
+  const ttl = remember ? REMEMBER_TTL_MS : SESSION_TTL_MS;
+  store.set(SESSION_COOKIE, createSessionValue(user, remember), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_TTL_MS / 1000,
+    // "Remember me" → persistent 30-day cookie. Otherwise a browser
+    // session cookie (cleared when the browser closes); the signed value
+    // itself still expires after the default TTL.
+    ...(remember ? { maxAge: ttl / 1000 } : {}),
   });
 }
 

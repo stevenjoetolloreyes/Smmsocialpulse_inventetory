@@ -3,7 +3,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getAuthBranding, loginAction, type LoginMode } from "@/server/actions";
+import {
+  getAuthBranding,
+  loginAction,
+  resendVerificationAction,
+  type LoginMode,
+} from "@/server/actions";
 import { Icon } from "@/components/ui";
 import {
   AuthCard,
@@ -27,7 +32,6 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [ownerPw, setOwnerPw] = useState("");
   const [showOwnerPw, setShowOwnerPw] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
 
   // Branch Staff tab
   const [storeCode, setStoreCode] = useState("");
@@ -35,9 +39,25 @@ export default function LoginPage() {
   const [staffPw, setStaffPw] = useState("");
   const [showStaffPw, setShowStaffPw] = useState(false);
 
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [resend, setResend] = useState<{ emailSent: boolean; verifyUrl: string | null } | null>(null);
+  const [resending, setResending] = useState(false);
   const [busy, setBusy] = useState(false);
   const capsOn = useCapsLock();
+
+  // One-time notices arriving from the verify / reset flows.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("verified") === "1") {
+      setNotice("Email verified — your store account is now active. You can sign in.");
+    } else if (q.get("reset") === "1") {
+      setNotice("Password updated. Sign in with your new password.");
+    } else if (q.get("verify_error") === "1") {
+      setError("That verification link is invalid or has expired. Use the resend option below after a sign-in attempt.");
+    }
+  }, []);
 
   const [branding, setBranding] = useState<{
     storeName: string;
@@ -62,15 +82,16 @@ export default function LoginPage() {
   const switchTab = (next: LoginMode) => {
     setTab(next);
     setError("");
-    setShowForgot(false);
+    setResend(null);
   };
 
   const submitOwner = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
+    setResend(null);
     setBusy(true);
     try {
-      await loginAction(identifier, ownerPw, "owner");
+      await loginAction(identifier, ownerPw, "owner", "", rememberMe);
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -82,9 +103,10 @@ export default function LoginPage() {
   const submitStaff = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
+    setResend(null);
     setBusy(true);
     try {
-      await loginAction(staffUsername, staffPw, "staff", storeCode);
+      await loginAction(staffUsername, staffPw, "staff", storeCode, rememberMe);
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -92,6 +114,69 @@ export default function LoginPage() {
       setBusy(false);
     }
   };
+
+  const needsVerify = error.startsWith("Please verify your email address");
+  const doResend = async () => {
+    setResending(true);
+    try {
+      const r = await resendVerificationAction(identifier || staffUsername);
+      setResend(r);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not resend the verification email.");
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const rememberRow = (
+    <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-600">
+      <input
+        type="checkbox"
+        className="h-4 w-4 rounded accent-[#15803d]"
+        checked={rememberMe}
+        onChange={(e) => setRememberMe(e.target.checked)}
+      />
+      Remember me for 30 days
+    </label>
+  );
+
+  const resendBlock = needsVerify && (
+    <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+      {resend ? (
+        resend.emailSent ? (
+          <p>
+            A new verification email is on its way. Check your inbox and click the link
+            to activate your account.
+          </p>
+        ) : (
+          <>
+            <p>
+              Email sending is not configured on this platform yet (setup mode), so use
+              this verification link instead:
+            </p>
+            <a href={resend.verifyUrl ?? "#"} className="mt-2 block break-all text-xs font-semibold hover:underline">
+              {resend.verifyUrl}
+            </a>
+          </>
+        )
+      ) : (
+        <button
+          type="button"
+          onClick={() => void doResend()}
+          disabled={resending}
+          className="font-bold text-[#15803d] hover:underline disabled:opacity-60"
+        >
+          {resending ? "Sending…" : "Resend verification email"}
+        </button>
+      )}
+    </div>
+  );
+
+  const noticeBlock = notice && (
+    <p className="mb-4 rounded-2xl bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700">
+      {notice}
+    </p>
+  );
 
   const heading =
     branding && branding.storeName && branding.storeName !== "My Store"
@@ -129,6 +214,8 @@ export default function LoginPage() {
         </button>
       </div>
 
+      {noticeBlock}
+
       {tab === "owner" ? (
         <form onSubmit={submitOwner} autoComplete="off">
           <label className={authLabelCls} htmlFor="identifier">
@@ -163,8 +250,10 @@ export default function LoginPage() {
             <EyeToggle show={showOwnerPw} onToggle={() => setShowOwnerPw((v) => !v)} />
           </div>
           <CapsLockWarning on={capsOn} />
+          {rememberRow}
 
           <AuthError message={error} />
+          {resendBlock}
 
           <button type="submit" disabled={busy} className={`${authPrimaryBtnCls} mt-5`}>
             {busy ? (
@@ -182,20 +271,14 @@ export default function LoginPage() {
           />
 
           <div className="mt-4 text-right">
-            <button
-              type="button"
-              className="text-sm font-semibold text-[#15803d] hover:underline"
-              onClick={() => setShowForgot((v) => !v)}
-            >
+            <Link href="/forgot-password" className="text-sm font-semibold text-[#15803d] hover:underline">
               Forgot password?
-            </button>
+            </Link>
           </div>
-          {showForgot && (
-            <p className="mt-2 rounded-2xl bg-stone-100 px-4 py-2.5 text-center text-xs leading-relaxed text-stone-500">
-              Passwords are reset by the store owner — ask them to set a new one for
-              your account in Settings → User Management.
-            </p>
-          )}
+          <p className="mt-2 text-center text-xs leading-relaxed text-stone-400">
+            Store staff without an email on their account can instead ask their store
+            owner to set a new password in Settings → User Management.
+          </p>
         </form>
       ) : (
         <form onSubmit={submitStaff} autoComplete="off">
@@ -213,8 +296,9 @@ export default function LoginPage() {
             />
           </div>
           <p className="mt-1.5 text-xs leading-relaxed text-stone-400">
-            Leave this blank if your store has not given you a store code — you can
-            still sign in with your staff username below.
+            Your store code identifies which store you belong to — your store owner
+            can find it in Settings. You only need it when the same username exists
+            in more than one store.
           </p>
 
           <label className={`${authLabelCls} mt-4`} htmlFor="staff-username">
@@ -249,8 +333,10 @@ export default function LoginPage() {
             <EyeToggle show={showStaffPw} onToggle={() => setShowStaffPw((v) => !v)} />
           </div>
           <CapsLockWarning on={capsOn} />
+          {rememberRow}
 
           <AuthError message={error} />
+          {resendBlock}
 
           <button type="submit" disabled={busy} className={`${authPrimaryBtnCls} mt-5`}>
             {busy ? (

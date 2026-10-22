@@ -16,6 +16,8 @@ import { InventoryReport } from "./InventoryReport";
 import { HistoryLog } from "./HistoryLog";
 import { LabelsView } from "./LabelsView";
 import { SettingsView } from "./SettingsView";
+import { SubscriptionView } from "./SubscriptionView";
+import { HelpButton } from "./HelpButton";
 import { PrintHost } from "./PrintHost";
 
 const NAV: { group: string; items: { key: ViewKey; label: string; icon: string }[] }[] = [
@@ -43,7 +45,10 @@ const NAV: { group: string; items: { key: ViewKey; label: string; icon: string }
   },
   {
     group: "System",
-    items: [{ key: "settings", label: "Settings", icon: "gear" }],
+    items: [
+      { key: "settings", label: "Settings", icon: "gear" },
+      { key: "subscription", label: "Subscription", icon: "crown" },
+    ],
   },
 ];
 
@@ -69,6 +74,7 @@ const TITLES: Record<ViewKey, string> = {
   history: "History Log",
   labels: "QR Labels",
   settings: "Settings",
+  subscription: "Subscription",
 };
 
 export function AppShell() {
@@ -91,9 +97,18 @@ export function AppShell() {
       {/* Sidebar — desktop */}
       <aside className="no-print sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-[#12291b] text-white lg:flex">
         <div className="flex items-center gap-3 px-5 pb-4 pt-5">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-lg font-bold">
-            {settings.logoText || "MS"}
-          </span>
+          {settings.logoData ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={settings.logoData}
+              alt=""
+              className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/20"
+            />
+          ) : (
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-lg font-bold">
+              {settings.logoText || "MS"}
+            </span>
+          )}
           <div className="min-w-0">
             <p className="truncate font-bold leading-tight">{settings.storeName}</p>
             <p className="text-xs text-white/60">Inventory Management</p>
@@ -159,9 +174,18 @@ export function AppShell() {
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print sticky top-0 z-30 flex items-center gap-3 border-b border-stone-200 bg-white/90 px-4 py-3 backdrop-blur lg:px-6">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--brand)] text-sm font-bold text-white lg:hidden">
-            {settings.logoText || "MS"}
-          </span>
+          {settings.logoData ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={settings.logoData}
+              alt=""
+              className="h-9 w-9 rounded-lg object-cover lg:hidden"
+            />
+          ) : (
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--brand)] text-sm font-bold text-white lg:hidden">
+              {settings.logoText || "MS"}
+            </span>
+          )}
           <h1 className="flex-1 truncate text-lg font-bold text-stone-800">
             {TITLES[view]}
           </h1>
@@ -196,7 +220,10 @@ export function AppShell() {
           {view === "history" && <HistoryLog />}
           {view === "labels" && <LabelsView />}
           {view === "settings" && <SettingsView />}
+          {view === "subscription" && <SubscriptionView />}
         </main>
+
+        <HelpButton />
 
         {/* Bottom nav — mobile */}
         <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 backdrop-blur lg:hidden">

@@ -26,7 +26,8 @@ export type ViewKey =
   | "inventory-report"
   | "history"
   | "labels"
-  | "settings";
+  | "settings"
+  | "subscription";
 
 export type PrintJob =
   | { kind: "receipt"; saleId: number }

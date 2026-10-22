@@ -1,14 +1,23 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "./store";
 import { Card, EmptyState, Icon, SectionTitle, btnGhost } from "./ui";
 import { ProductThumb } from "./Qr";
-import { fmtDateTime, fmtInt, peso, stockStatus } from "@/lib/format";
+import { fmtDate, fmtDateTime, fmtInt, peso, stockStatus } from "@/lib/format";
 
 export function Dashboard() {
   const { data, setView, openProduct } = useStore();
   const { products, sales, settings } = data;
+
+  // One-time banner right after the setup wizard launches the store.
+  const [setupDone, setSetupDone] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("setup") === "done") {
+      setSetupDone(true);
+      window.history.replaceState(null, "", "/");
+    }
+  }, []);
 
   const stats = useMemo(() => {
     const totalValue = products.reduce((s, p) => s + p.quantity * p.costPrice, 0);
@@ -108,8 +117,73 @@ export function Dashboard() {
     { icon: "circle-xmark", label: "Out of Stock", value: fmtInt(stats.out.length), sub: "needs restocking", tone: "text-red-700 bg-red-50" },
   ];
 
+  const activeUsers = data.staff.filter((s) => s.active).length;
+  const plan = data.plan;
+
   return (
     <div className="space-y-5">
+      {setupDone && (
+        <div className="flex items-start gap-3 rounded-2xl bg-emerald-600 px-4 py-3.5 text-white shadow">
+          <span className="mt-0.5 text-lg">
+            <Icon name="circle-check" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold">Setup completed — welcome to your store!</p>
+            <p className="text-sm text-white/85">
+              {data.store.name} is live on the {plan.name} plan. Add your first product in
+              Inventory, or scan a QR code to stock in.
+            </p>
+          </div>
+          <button
+            onClick={() => setSetupDone(false)}
+            className="rounded-full p-1 text-white/70 hover:bg-white/15 hover:text-white"
+            aria-label="Dismiss"
+          >
+            <Icon name="xmark" />
+          </button>
+        </div>
+      )}
+
+      {/* Active plan strip */}
+      <Card className="flex flex-wrap items-center gap-x-5 gap-y-2 border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-4 py-3">
+        <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-800">
+          <Icon name="crown" /> Active Plan
+        </span>
+        <span className="rounded-full bg-[var(--brand)] px-3 py-1 text-sm font-bold text-white">
+          {plan.name}
+          {plan.priceMonthly > 0 && (
+            <span className="ml-1 font-medium text-white/75">{peso(plan.priceMonthly)}/mo</span>
+          )}
+        </span>
+        <span className="text-sm text-stone-600">
+          Users <strong>{activeUsers}</strong> of{" "}
+          <strong>{plan.maxUsers === 0 ? "unlimited" : plan.maxUsers}</strong>
+        </span>
+        <span className="flex items-center gap-1.5 text-sm text-stone-600">
+          <span className={plan.imageUpload ? "text-emerald-600" : "text-red-500"}>
+            <Icon name={plan.imageUpload ? "check" : "xmark"} />
+          </span>
+          Product images
+        </span>
+        <span className="flex items-center gap-1.5 text-sm text-stone-600">
+          <span className={plan.reportExport ? "text-emerald-600" : "text-red-500"}>
+            <Icon name={plan.reportExport ? "check" : "xmark"} />
+          </span>
+          Report export
+        </span>
+        {data.store.planExpiresAt && data.store.planId !== "free" && (
+          <span className="text-sm text-stone-500">
+            Plan until {fmtDate(data.store.planExpiresAt)}
+          </span>
+        )}
+        <button
+          className="ml-auto text-sm font-bold text-[var(--brand)] hover:underline"
+          onClick={() => setView("subscription")}
+        >
+          View Subscription <Icon name="arrow-right" className="text-xs" />
+        </button>
+      </Card>
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {statCards.map((c) => (
           <Card key={c.label} className="p-4">

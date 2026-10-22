@@ -421,7 +421,16 @@ export function Inventory() {
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>Image URL (optional)</label>
-            <input className={inputCls} value={form.imageUrl} onChange={(e) => setF("imageUrl", e.target.value)} placeholder="https://… — leave blank to use initials" />
+            {data.plan.imageUpload ? (
+              <input className={inputCls} value={form.imageUrl} onChange={(e) => setF("imageUrl", e.target.value)} placeholder="https://… — leave blank to use initials" />
+            ) : (
+              <p className="rounded-xl bg-stone-50 px-3.5 py-2.5 text-xs leading-relaxed text-stone-500">
+                Product images are available on the <strong>Pro</strong> and{" "}
+                <strong>Business</strong> plans. Your store is on the{" "}
+                <strong>{data.plan.name}</strong> plan, so products use their initials
+                instead — see Subscription for how upgrades work.
+              </p>
+            )}
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>Notes</label>
