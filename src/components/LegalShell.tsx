@@ -12,7 +12,7 @@ export default function LegalShell({
   children: ReactNode;
 }) {
   return (
-    <main className="relative min-h-screen bg-gradient-to-b from-[#dff3e4] via-[#eef6e9] to-[#fdf3d8] px-4 py-10">
+    <main className="relative min-h-screen bg-[linear-gradient(155deg,#cdeffd_0%,#d8f3e2_32%,#eef6e9_58%,#fdf0d3_100%)] px-4 py-10">
       <div className="relative mx-auto w-full max-w-2xl rounded-[24px] bg-white/95 p-7 shadow-[0_24px_60px_-16px_rgba(20,83,45,0.35)] ring-1 ring-black/5 sm:p-9">
         <div className="mb-5 flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#16a34a] to-[#14532d] text-lg text-white shadow-md">
