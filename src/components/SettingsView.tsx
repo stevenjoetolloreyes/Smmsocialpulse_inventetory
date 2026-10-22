@@ -101,6 +101,14 @@ function GeneralTab() {
             <input className={inputCls} maxLength={3} value={form.logoText} onChange={(e) => set("logoText", e.target.value.toUpperCase())} />
           </div>
           <div>
+            <label className={labelCls}>Store code (staff sign-in)</label>
+            <input className={inputCls} value={form.storeCode} onChange={(e) => set("storeCode", e.target.value)} placeholder="e.g. STR-A1B2" />
+            <p className="mt-1 text-xs text-stone-400">
+              Optional code branch staff enter when signing in. If set, a code typed
+              on the staff sign-in tab must match. Leave blank to make it fully optional.
+            </p>
+          </div>
+          <div>
             <label className={labelCls}>Date format</label>
             <select className={inputCls} value={form.dateFormat} onChange={(e) => set("dateFormat", e.target.value as SettingsDTO["dateFormat"])}>
               <option value="mdy">Oct 22, 2026 (Month Day, Year)</option>

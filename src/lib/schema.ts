@@ -195,6 +195,7 @@ export const settings = sqliteTable("settings", {
   address: text("address").notNull().default(""),
   email: text("email").notNull().default(""),
   logoText: text("logo_text").notNull().default("MS"),
+  storeCode: text("store_code").notNull().default(""),
   primaryColor: text("primary_color").notNull().default("#14532d"),
   theme: text("theme").notNull().default("system"),
   dateFormat: text("date_format").notNull().default("mdy"),

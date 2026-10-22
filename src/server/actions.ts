@@ -22,6 +22,7 @@ import {
   fifoOrder,
   isSellable,
   loadProducts,
+  loadSettings,
   nextItemCode,
   nextOrNumber,
   round2,
@@ -33,18 +34,63 @@ import {
 
 /* ---------------- auth ---------------- */
 
+export type LoginMode = "owner" | "staff";
+
+/** Roles allowed to sign in from the Owner / Main tab. */
+const OWNER_ROLES = ["Administrator"];
+
+/**
+ * Signs a user in. Two modes mirror the login page tabs:
+ * - "owner": identifier is an email OR username; the account must hold an
+ *   owner/admin role.
+ * - "staff": identifier is a staff username; the account must NOT hold an
+ *   owner role. When the store has a store code configured and one is
+ *   provided, it must match.
+ */
 export async function loginAction(
-  username: string,
+  identifier: string,
   password: string,
+  mode: LoginMode = "owner",
+  storeCode: string = "",
 ): Promise<{ user: SessionUser }> {
   const db = await getDb();
   const rows = await db.select().from(t.staff);
-  const user = rows.find((s) => s.username.toLowerCase() === username.trim().toLowerCase());
+  const needle = identifier.trim().toLowerCase();
+  const user =
+    mode === "owner"
+      ? rows.find(
+          (s) =>
+            s.username.toLowerCase() === needle ||
+            (s.email !== "" && s.email.toLowerCase() === needle),
+        )
+      : rows.find((s) => s.username.toLowerCase() === needle);
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
-    throw new Error("Invalid username or password.");
+    throw new Error(
+      mode === "owner"
+        ? "Invalid email or username or password."
+        : "Invalid username or password.",
+    );
   }
   if (user.active !== 1) {
-    throw new Error("This account is inactive. Ask the administrator to reactivate it in Settings.");
+    throw new Error(
+      "This account is not active yet. If you just registered, the store owner must activate it in Settings → User Management first.",
+    );
+  }
+  const isOwner = OWNER_ROLES.includes(user.role);
+  if (mode === "owner" && !isOwner) {
+    throw new Error(
+      "This is not an owner account. If you are branch staff, use the Branch Staff tab to sign in.",
+    );
+  }
+  if (mode === "staff" && isOwner) {
+    throw new Error("Owner accounts sign in from the Owner / Main tab.");
+  }
+  if (mode === "staff") {
+    const provided = storeCode.trim();
+    const settings = await loadSettings(db);
+    if (provided && settings.storeCode && provided !== settings.storeCode) {
+      throw new Error("That store code does not match this store. Check the code and try again.");
+    }
   }
   const nowIso = new Date().toISOString();
   await db.update(t.staff).set({ lastLogin: nowIso }).where(eq(t.staff.id, user.id));
@@ -64,6 +110,80 @@ export async function loginAction(
     reference: user.username,
   });
   return { user: session };
+}
+
+/**
+ * Public self-registration from /register. Always creates an INACTIVE
+ * staff account with the plain "Staff" role — the store owner reviews,
+ * activates, and may promote it in Settings → User Management. Public
+ * registration can never grant an owner/admin account.
+ */
+export async function registerAction(input: {
+  username: string;
+  email: string;
+  password: string;
+}): Promise<{ ok: true }> {
+  const db = await getDb();
+  const username = input.username.trim();
+  const email = input.email.trim();
+  if (username.length < 3) {
+    throw new Error("Username must be at least 3 characters.");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Enter a valid email address.");
+  }
+  if (input.password.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+  const all = await db.select().from(t.staff);
+  if (all.some((s) => s.username.toLowerCase() === username.toLowerCase())) {
+    throw new Error(`Username "${username}" is already taken.`);
+  }
+  if (all.some((s) => s.email !== "" && s.email.toLowerCase() === email.toLowerCase())) {
+    throw new Error("An account with this email already exists.");
+  }
+  const [row] = await db
+    .insert(t.staff)
+    .values({
+      name: username,
+      username,
+      email,
+      passwordHash: await hashPassword(input.password),
+      role: "Staff",
+      active: 0,
+      lastLogin: "",
+      createdAt: new Date(),
+    })
+    .returning();
+  await addHistory(db, {
+    action: "Create",
+    entityType: "Staff",
+    entityId: row.id,
+    description: `Account "${username}" registered and is waiting for owner activation`,
+    actor: username,
+    reference: username,
+  });
+  return { ok: true as const };
+}
+
+/**
+ * Public branding for the sign-in / register screens (no session needed):
+ * the store name for the card heading, and whether the social sign-in
+ * buttons should be shown (only when the owner has configured the
+ * matching provider credentials in the environment).
+ */
+export async function getAuthBranding(): Promise<{
+  storeName: string;
+  googleEnabled: boolean;
+  facebookEnabled: boolean;
+}> {
+  const db = await getDb();
+  const settings = await loadSettings(db);
+  return {
+    storeName: settings.storeName,
+    googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID?.trim()),
+    facebookEnabled: Boolean(process.env.FACEBOOK_APP_ID?.trim()),
+  };
 }
 
 export async function logoutAction(): Promise<{ ok: true }> {
@@ -1134,6 +1254,7 @@ export async function saveSettings(input: SettingsDTO): Promise<{ ok: true }> {
     email: input.email.trim(),
     logoText:
       input.logoText.trim() || (input.storeName.trim().slice(0, 2).toUpperCase() || "MS"),
+    storeCode: input.storeCode.trim(),
     primaryColor: input.primaryColor,
     theme: input.theme,
     dateFormat: input.dateFormat,

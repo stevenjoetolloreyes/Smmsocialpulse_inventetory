@@ -178,6 +178,7 @@ export type SettingsDTO = {
   address: string;
   email: string;
   logoText: string;
+  storeCode: string;
   primaryColor: string;
   theme: string;
   dateFormat: string; // mdy | dmy | iso
