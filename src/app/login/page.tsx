@@ -293,13 +293,13 @@ export default function LoginPage() {
               className={authInputCls}
               value={storeCode}
               onChange={(e) => setStoreCode(e.target.value)}
-              placeholder="e.g. STR-A1B2 or Branch Code"
+              placeholder="e.g. STR-A1B2C3"
+              required
             />
           </div>
           <p className="mt-1.5 text-xs leading-relaxed text-stone-400">
-            Your store code identifies which store you belong to — your store owner
-            can find it in Settings. You only need it when the same username exists
-            in more than one store.
+            Your Store Code is required. It identifies your store — ask your store
+            owner if you don&apos;t know it.
           </p>
 
           <label className={`${authLabelCls} mt-4`} htmlFor="staff-username">

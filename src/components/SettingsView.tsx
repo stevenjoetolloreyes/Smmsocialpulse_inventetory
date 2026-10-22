@@ -152,10 +152,11 @@ function GeneralTab() {
           </div>
           <div>
             <label className={labelCls}>Store code (staff sign-in)</label>
-            <input className={inputCls} value={form.storeCode} onChange={(e) => set("storeCode", e.target.value)} placeholder="e.g. STR-A1B2" />
+            <input className={inputCls} value={form.storeCode} onChange={(e) => set("storeCode", e.target.value)} placeholder="e.g. STR-A1B2C3" />
             <p className="mt-1 text-xs text-stone-400">
-              Optional code branch staff enter when signing in. If set, a code typed
-              on the staff sign-in tab must match. Leave blank to make it fully optional.
+              Required. Every staff member must enter this code together with their
+              username and password to sign in. It identifies your store — share it
+              only with your own staff.
             </p>
           </div>
           <div>
@@ -296,6 +297,12 @@ function UsersTab() {
           </button>
         }
       />
+      <div className="mb-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-900 ring-1 ring-emerald-100">
+        <span className="font-semibold">Your Store Code:</span>{" "}
+        <span className="font-mono font-bold tracking-wide">{data.settings.storeCode || "—"}</span>
+        {" "}— give this to every staff member (manager, cashier, staff). They must enter it
+        together with their username and password to sign in.
+      </div>
       <div className="nice-scroll overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead>
@@ -346,6 +353,14 @@ function UsersTab() {
       <Modal open={form !== null} onClose={() => setForm(null)} title={form?.id ? "Edit User" : "Add User"} icon="user-gear">
         {form && (
           <div className="space-y-3">
+            <div className="rounded-xl bg-stone-50 px-3.5 py-2.5 text-xs leading-relaxed text-stone-500">
+              This user signs in with your Store Code:{" "}
+              <span className="font-mono font-bold tracking-wide text-stone-700">
+                {data.settings.storeCode || "—"}
+              </span>{" "}
+              — share it with them; they must enter it together with their username and
+              password on the Branch Staff sign-in tab.
+            </div>
             <div>
               <label className={labelCls}>Full name *</label>
               <input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

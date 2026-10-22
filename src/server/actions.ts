@@ -33,6 +33,7 @@ import {
   createEmailToken,
   createStoreSettings,
   deductFIFO,
+  ensureStoreCode,
   fifoOrder,
   getStoreBatch,
   getStoreItem,
@@ -137,9 +138,10 @@ function assertValidUsername(username: string): void {
  *   only sign-in is the dedicated /admin page. Owner usernames/emails
  *   are unique platform-wide.
  * - "staff": identifier is a staff username, unique within its store.
- *   The Store Code identifies which store: it is matched against each
- *   store's own settings.store_code. Without a code, the username must
- *   resolve to exactly one account across stores.
+ *   The Store Code is REQUIRED: it identifies which store the staff
+ *   member belongs to and is matched against that store's own
+ *   settings.store_code. No code (or a code no store owns) never signs
+ *   anyone in.
  *
  * Unverified accounts (self-registered owners) are blocked until their
  * email is verified; suspended stores cannot sign in at all.
@@ -164,29 +166,23 @@ async function loginActionImpl(
     );
   } else {
     const code = storeCode.trim();
-    if (code) {
-      const settingsRows = await db.select().from(t.settings);
-      const match = settingsRows.find((s) => s.storeCode !== "" && s.storeCode === code);
-      if (!match) {
-        throw new Error("No store matches that store code. Check the code and try again.");
-      }
-      candidates = rows.filter(
-        (s) => s.storeId === match.storeId && s.username.toLowerCase() === needle,
-      );
-    } else {
-      candidates = rows.filter((s) => s.username.toLowerCase() === needle);
+    if (!code) {
+      throw new Error("Store Code is required for staff sign-in.");
     }
+    const settingsRows = await db.select().from(t.settings);
+    const match = settingsRows.find((s) => s.storeCode !== "" && s.storeCode === code);
+    if (!match) {
+      throw new Error("Invalid Store Code.");
+    }
+    candidates = rows.filter(
+      (s) => s.storeId === match.storeId && s.username.toLowerCase() === needle,
+    );
   }
 
   let user: StaffRow | null = null;
   const matched: StaffRow[] = [];
   for (const c of candidates) {
     if (await verifyPassword(password, c.passwordHash)) matched.push(c);
-  }
-  if (matched.length > 1 && mode === "staff" && !storeCode.trim()) {
-    throw new Error(
-      "That username exists in more than one store. Enter your store code so we know which store to sign you into.",
-    );
   }
   user = matched[0] ?? null;
   if (!user) {
@@ -599,6 +595,8 @@ async function completeStoreSetupImpl(input: {
     .update(t.stores)
     .set({ name: storeName, setupCompleted: 1 })
     .where(eq(t.stores.id, storeId));
+  // A store leaving setup always has its staff sign-in code in place.
+  await ensureStoreCode(db, storeId);
   await addHistory(db, storeId, {
     action: "Setup",
     entityType: "Store",
@@ -1718,6 +1716,18 @@ async function saveSettingsImpl(input: SettingsDTO): Promise<{ ok: true }> {
   if (logoData && (!logoData.startsWith("data:image/") || logoData.length > 280_000)) {
     throw new Error("The store logo must be an image under about 200 KB.");
   }
+  const storeCode = input.storeCode.trim();
+  if (!storeCode) {
+    throw new Error("Store Code is required — your staff need it to sign in.");
+  }
+  const allSettings = await db.select().from(t.settings);
+  if (
+    allSettings.some(
+      (s) => s.storeId !== storeId && s.storeCode !== "" && s.storeCode === storeCode,
+    )
+  ) {
+    throw new Error("That Store Code is already used by another store.");
+  }
   const values = {
     storeName: input.storeName.trim() || "My Store",
     phone: input.phone.trim(),
@@ -1729,7 +1739,7 @@ async function saveSettingsImpl(input: SettingsDTO): Promise<{ ok: true }> {
     logoText:
       input.logoText.trim() || (input.storeName.trim().slice(0, 2).toUpperCase() || "MS"),
     logoData,
-    storeCode: input.storeCode.trim(),
+    storeCode,
     primaryColor: input.primaryColor,
     theme: input.theme,
     dateFormat: input.dateFormat,

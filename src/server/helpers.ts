@@ -458,6 +458,19 @@ export async function ensureSeed(db: DB): Promise<void> {
     });
   }
 
+  // Store codes are mandatory (staff sign-in requires one): backfill any
+  // settings row that still has none — legacy and older test stores get
+  // theirs here, on first boot after this change.
+  const allSettingsRows = await db.select().from(t.settings);
+  for (const row of allSettingsRows) {
+    if (!(row.storeCode ?? "").trim()) {
+      await db
+        .update(t.settings)
+        .set({ storeCode: await generateStoreCode(db) })
+        .where(eq(t.settings.storeId, row.storeId));
+    }
+  }
+
   // Platform admin seed (fresh installs only): admin / admin123.
   const staffRows = await db.select().from(t.staff);
   if (staffRows.length === 0) {
@@ -505,10 +518,60 @@ export function defaultSettings(): SettingsDTO {
   };
 }
 
+/* ---------------- store codes (staff sign-in gate) ---------------- */
+
+/** Unambiguous uppercase alphabet (no 0/O, 1/I/L) for generated codes. */
+const STORE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/**
+ * Generates a fresh "STR-XXXXXX" store code, unique across every store's
+ * settings row. Retries on collision.
+ */
+export async function generateStoreCode(db: DB): Promise<string> {
+  const rows = await db.select({ storeCode: t.settings.storeCode }).from(t.settings);
+  const used = new Set(
+    rows.map((r) => (r.storeCode ?? "").trim()).filter((c) => c !== ""),
+  );
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const bytes = randomBytes(6);
+    let suffix = "";
+    for (let i = 0; i < 6; i++) {
+      suffix += STORE_CODE_ALPHABET[bytes[i] % STORE_CODE_ALPHABET.length];
+    }
+    const code = `STR-${suffix}`;
+    if (!used.has(code)) return code;
+  }
+  throw new Error("Could not generate a unique store code. Please try again.");
+}
+
+/**
+ * Every store must ALWAYS have a store code: staff sign-in requires it.
+ * Returns the store's existing code, or generates + persists one when the
+ * settings row has none (or does not exist yet).
+ */
+export async function ensureStoreCode(db: DB, storeId: number): Promise<string> {
+  const rows = await db.select().from(t.settings).where(eq(t.settings.storeId, storeId));
+  const row = rows[0];
+  const existing = (row?.storeCode ?? "").trim();
+  if (existing) return existing;
+  const code = await generateStoreCode(db);
+  if (row) {
+    await db
+      .update(t.settings)
+      .set({ storeCode: code })
+      .where(eq(t.settings.storeId, storeId));
+  } else {
+    await db.insert(t.settings).values({ id: storeId, storeId, storeCode: code });
+  }
+  return code;
+}
+
 export async function loadSettings(db: DB, storeId: number): Promise<SettingsDTO> {
+  // Self-healing: a store loaded for a session always ends up with a code.
+  const storeCode = await ensureStoreCode(db, storeId);
   const rows = await db.select().from(t.settings).where(eq(t.settings.storeId, storeId));
   const r = rows[0];
-  if (!r) return defaultSettings();
+  if (!r) return { ...defaultSettings(), storeCode };
   const d = defaultSettings();
   let security = d.security;
   try {
@@ -531,7 +594,7 @@ export async function loadSettings(db: DB, storeId: number): Promise<SettingsDTO
     email: r.email,
     logoText: r.logoText,
     logoData: r.logoData ?? "",
-    storeCode: r.storeCode ?? "",
+    storeCode,
     primaryColor: r.primaryColor,
     theme: r.theme,
     dateFormat: r.dateFormat,
@@ -549,6 +612,7 @@ export async function createStoreSettings(
     id: storeId,
     storeId,
     storeName,
+    storeCode: await generateStoreCode(db),
     logoText: storeName.slice(0, 2).toUpperCase() || "MS",
     primaryColor: "#14532d",
     theme: "system",
