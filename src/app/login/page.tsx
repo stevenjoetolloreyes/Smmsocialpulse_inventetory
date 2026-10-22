@@ -361,13 +361,6 @@ export default function LoginPage() {
           Register now
         </Link>
       </p>
-
-      <p className="mt-2 text-center text-xs text-stone-400">
-        Platform owner?{" "}
-        <Link href="/admin" className="font-semibold text-stone-500 hover:text-[#15803d] hover:underline">
-          Admin sign-in →
-        </Link>
-      </p>
     </AuthCard>
   );
 }
