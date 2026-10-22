@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-brand: var(--brand, #14532d);
+}
+
+:root {
+  --brand: #14532d;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-stone-100 text-stone-900 antialiased;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+/* Slim scrollbars for panels */
+.nice-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.nice-scroll::-webkit-scrollbar-thumb {
+  background: rgb(0 0 0 / 0.18);
+  border-radius: 999px;
+}
+
+/* ---------- printing: receipts & labels ---------- */
+.print-area {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    display: block;
+    position: absolute;
+    inset: 0;
+    padding: 12px;
+    background: #fff;
+    color: #000;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
