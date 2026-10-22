@@ -97,7 +97,8 @@ function assertValidUsername(username: string): void {
 /**
  * Signs a user in. Two modes mirror the login page tabs:
  * - "owner": identifier is an email OR username; the account must hold an
- *   owner/admin role (or be the platform admin). Owner usernames/emails
+ *   owner/admin role. Platform admin accounts are refused here — their
+ *   only sign-in is the dedicated /admin page. Owner usernames/emails
  *   are unique platform-wide.
  * - "staff": identifier is a staff username, unique within its store.
  *   The Store Code identifies which store: it is matched against each
@@ -161,13 +162,20 @@ export async function loginAction(
   }
 
   const isPlatformAdmin = user.isPlatformAdmin === 1;
+  if (isPlatformAdmin) {
+    // The platform admin's only door is the dedicated /admin sign-in.
+    // The store login never mints a session for this account.
+    throw new Error(
+      "This is the platform admin account. Please sign in at the Admin page instead.",
+    );
+  }
   const isOwner = OWNER_ROLES.includes(user.role);
-  if (mode === "owner" && !isOwner && !isPlatformAdmin) {
+  if (mode === "owner" && !isOwner) {
     throw new Error(
       "This is not an owner account. If you are branch staff, use the Branch Staff tab to sign in.",
     );
   }
-  if (mode === "staff" && (isOwner || isPlatformAdmin)) {
+  if (mode === "staff" && isOwner) {
     throw new Error("Owner accounts sign in from the Owner / Main tab.");
   }
   if (user.emailVerified !== 1) {
