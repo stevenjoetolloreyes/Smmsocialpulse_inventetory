@@ -1,18 +1,31 @@
 /**
  * Transactional email (verification + password reset).
  *
- * Sends through the Resend API when RESEND_API_KEY is configured
- * (EMAIL_FROM overrides the sender; otherwise Resend's onboarding sender
- * is used, which can only deliver to the Resend account owner's inbox).
+ * Two sending routes, in priority order:
  *
- * When no mailer is configured, sendMail returns false and the callers
- * fall back to showing the link ON SCREEN (setup mode) — the flows must
- * work end-to-end either way, because the platform operator may not have
- * connected an email provider yet.
+ * 1. SMTP (SMTP_USER + SMTP_PASS set) — works with a Gmail account and a
+ *    Google App Password (SMTP_HOST defaults to smtp.gmail.com, SMTP_PORT
+ *    to 465). Any SMTP mailbox works the same way, e.g. a mailbox on the
+ *    operator's own domain. SMTP_FROM overrides the From header.
+ * 2. Resend API (RESEND_API_KEY set) — EMAIL_FROM overrides the sender;
+ *    otherwise Resend's onboarding sender is used, which can only deliver
+ *    to the Resend account owner's inbox.
+ *
+ * When neither is configured (or sending fails), sendMail returns false
+ * and the callers fall back to showing the link ON SCREEN (setup mode) —
+ * the flows must work end-to-end either way, because the platform
+ * operator may not have connected an email provider yet.
  */
+import nodemailer from "nodemailer";
+
+function smtpConfigured(): boolean {
+  return Boolean(
+    process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim(),
+  );
+}
 
 export function mailerConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY?.trim());
+  return smtpConfigured() || Boolean(process.env.RESEND_API_KEY?.trim());
 }
 
 /** Public base URL used to build links inside emails. */
@@ -25,13 +38,49 @@ export function appBaseUrl(): string {
   return raw.replace(/\/+$/, "");
 }
 
-export async function sendMail(args: {
+async function sendViaSmtp(args: {
   to: string;
   subject: string;
   text: string;
 }): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) return false;
+  const user = process.env.SMTP_USER!.trim();
+  // Google shows App Passwords in 4 blocks of 4 with spaces; the spaces
+  // are not part of the password, so strip them before authenticating.
+  const pass = process.env.SMTP_PASS!.replace(/\s+/g, "");
+  const host = process.env.SMTP_HOST?.trim() || "smtp.gmail.com";
+  const port = Number(process.env.SMTP_PORT?.trim() || "465") || 465;
+  const from =
+    process.env.SMTP_FROM?.trim() || `Inventory Management System <${user}>`;
+  const transport = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465, // 465 = implicit TLS; other ports use STARTTLS when offered
+    auth: { user, pass },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
+  });
+  try {
+    await transport.sendMail({
+      from,
+      to: args.to,
+      subject: args.subject,
+      text: args.text,
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    transport.close();
+  }
+}
+
+async function sendViaResend(args: {
+  to: string;
+  subject: string;
+  text: string;
+}): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY!.trim();
   const from =
     process.env.EMAIL_FROM?.trim() ||
     "Inventory Management System <onboarding@resend.dev>";
@@ -53,6 +102,16 @@ export async function sendMail(args: {
   } catch {
     return false;
   }
+}
+
+export async function sendMail(args: {
+  to: string;
+  subject: string;
+  text: string;
+}): Promise<boolean> {
+  if (smtpConfigured()) return sendViaSmtp(args);
+  if (process.env.RESEND_API_KEY?.trim()) return sendViaResend(args);
+  return false;
 }
 
 export async function sendVerificationEmail(
