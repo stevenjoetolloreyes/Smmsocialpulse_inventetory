@@ -255,6 +255,21 @@ export type StoreData = {
   notifications: NotificationDTO[];
   /** Store notifications with no read row for the signed-in user. */
   unreadNotifications: number;
+  /** The signed-in user's appearance preference: light | dark | system. */
+  themeMode: string;
+  /** Notification categories the signed-in user has muted (system excluded). */
+  mutedCategories: NotificationCategory[];
+  /** Recent sign-in activity for this store (Security Center). */
+  loginEvents: LoginEventDTO[];
+};
+
+export type LoginEventDTO = {
+  id: number;
+  username: string;
+  kind: string; // owner | staff | admin
+  success: boolean;
+  ip: string;
+  createdAt: string;
 };
 
 export type PlatformStoreDTO = {

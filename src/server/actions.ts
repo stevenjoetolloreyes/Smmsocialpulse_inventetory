@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, desc, eq, lte } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import * as t from "@/lib/schema";
 import {
@@ -30,6 +30,7 @@ import type {
 } from "@/lib/types";
 import { getStoreData } from "./data";
 import {
+  createDedupedNotification,
   createNotification,
   markAllNotificationsRead,
   markNotificationRead,
@@ -160,6 +161,87 @@ function assertValidUsername(username: string): void {
  * Unverified accounts (self-registered owners) are blocked until their
  * email is verified; suspended stores cannot sign in at all.
  */
+/** Best-effort client IP for the security log (proxy header first). */
+async function clientIp(): Promise<string> {
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    return (h.get("x-forwarded-for") || "").split(",")[0].trim().slice(0, 64);
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Records a real sign-in event for the Security Center. Failure-isolated:
+ * logging must never break sign-in. Passwords and tokens are never
+ * written. Retention: the newest 500 events per store are kept.
+ */
+async function recordLoginEvent(
+  db: Awaited<ReturnType<typeof getDb>>,
+  e: {
+    storeId: number | null;
+    userId: number | null;
+    username: string;
+    kind: string;
+    success: boolean;
+  },
+): Promise<void> {
+  try {
+    await db.insert(t.loginEvents).values({
+      storeId: e.storeId,
+      userId: e.userId,
+      username: e.username.slice(0, 120),
+      kind: e.kind,
+      success: e.success ? 1 : 0,
+      ip: await clientIp(),
+    });
+    if (e.storeId != null) {
+      const ids = await db
+        .select({ id: t.loginEvents.id })
+        .from(t.loginEvents)
+        .where(eq(t.loginEvents.storeId, e.storeId))
+        .orderBy(desc(t.loginEvents.id))
+        .limit(1)
+        .offset(499);
+      if (ids[0]) {
+        await db
+          .delete(t.loginEvents)
+          .where(
+            and(
+              eq(t.loginEvents.storeId, e.storeId),
+              lte(t.loginEvents.id, ids[0].id),
+            ),
+          );
+      }
+    }
+  } catch {
+    /* security logging must never break sign-in */
+  }
+}
+
+/** Alerts the store (system category) about a wrong-password attempt on a
+ *  real account — at most one alert per account per day. */
+async function notifyFailedLogin(
+  db: Awaited<ReturnType<typeof getDb>>,
+  account: StaffRow,
+  identifier: string,
+): Promise<void> {
+  if (account.storeId == null) return;
+  const day = new Date().toISOString().slice(0, 10);
+  await createDedupedNotification(
+    db,
+    account.storeId,
+    {
+      category: "system",
+      title: "Failed sign-in attempt",
+      body: `Someone tried to sign in as "${identifier}" with the wrong password. If this wasn't you or your staff, check the Security tab in Settings.`,
+      dedupeKey: `loginfail:${account.id}:${day}`,
+    },
+    "exists",
+  );
+}
+
 async function loginActionImpl(
   identifier: string,
   password: string,
@@ -186,6 +268,13 @@ async function loginActionImpl(
     const settingsRows = await db.select().from(t.settings);
     const match = settingsRows.find((s) => s.storeCode !== "" && s.storeCode === code);
     if (!match) {
+      await recordLoginEvent(db, {
+        storeId: null,
+        userId: null,
+        username: identifier.trim(),
+        kind: "staff",
+        success: false,
+      });
       throw new Error("Invalid Store Code.");
     }
     candidates = rows.filter(
@@ -200,6 +289,16 @@ async function loginActionImpl(
   }
   user = matched[0] ?? null;
   if (!user) {
+    await recordLoginEvent(db, {
+      storeId: candidates[0]?.storeId ?? null,
+      userId: candidates[0]?.id ?? null,
+      username: identifier.trim(),
+      kind: mode,
+      success: false,
+    });
+    if (candidates[0]) {
+      await notifyFailedLogin(db, candidates[0], identifier.trim());
+    }
     throw new Error(
       mode === "owner"
         ? "Invalid email or username or password."
@@ -211,6 +310,13 @@ async function loginActionImpl(
   if (isPlatformAdmin) {
     // The platform admin's only door is the dedicated /admin sign-in.
     // The store login never mints a session for this account.
+    await recordLoginEvent(db, {
+      storeId: null,
+      userId: user.id,
+      username: identifier.trim(),
+      kind: mode,
+      success: false,
+    });
     throw new Error(
       "This is the platform admin account. Please sign in at the Admin page instead.",
     );
@@ -255,6 +361,13 @@ async function loginActionImpl(
     isPlatformAdmin,
   };
   await setSessionCookie(session, rememberMe);
+  await recordLoginEvent(db, {
+    storeId: user.storeId ?? null,
+    userId: user.id,
+    username: user.username,
+    kind: mode,
+    success: true,
+  });
   if (user.storeId != null) {
     await addHistory(db, user.storeId, {
       action: "Login",
@@ -289,10 +402,24 @@ async function adminLoginActionImpl(
     if (await verifyPassword(password, c.passwordHash)) matched.push(c);
   }
   if (matched.length === 0) {
+    await recordLoginEvent(db, {
+      storeId: null,
+      userId: candidates[0]?.id ?? null,
+      username: needle,
+      kind: "admin",
+      success: false,
+    });
     throw new Error("Invalid username or password.");
   }
   const user = matched.find((s) => s.isPlatformAdmin === 1) ?? null;
   if (!user) {
+    await recordLoginEvent(db, {
+      storeId: null,
+      userId: matched[0]?.id ?? null,
+      username: needle,
+      kind: "admin",
+      success: false,
+    });
     throw new Error("This account is not a platform admin.");
   }
   if (user.emailVerified !== 1) {
@@ -313,6 +440,13 @@ async function adminLoginActionImpl(
     isPlatformAdmin: true,
   };
   await setSessionCookie(session, false);
+  await recordLoginEvent(db, {
+    storeId: null,
+    userId: user.id,
+    username: user.username,
+    kind: "admin",
+    success: true,
+  });
   return { user: session };
 }
 
@@ -583,8 +717,10 @@ async function completeStoreSetupImpl(input: {
   if (!zip) throw new Error("ZIP code is required.");
   const logoData = input.logoData.trim();
   if (logoData) {
-    if (!logoData.startsWith("data:image/")) {
-      throw new Error("The store logo must be an image file or an image URL.");
+    // Server-side allowlist: a real raster image as a base64 data URI.
+    // (SVG and other data: payloads are rejected — they can carry scripts.)
+    if (!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=\s]+$/.test(logoData)) {
+      throw new Error("The store logo must be a PNG, JPEG, WebP or GIF image.");
     }
     // ~200 KB of image data once base64 padding is accounted for.
     if (logoData.length > 280_000) {
@@ -2299,6 +2435,45 @@ async function markAllNotificationsReadActionImpl(): Promise<{ ok: true }> {
   return { ok: true as const };
 }
 
+const THEME_MODES = ["light", "dark", "system"] as const;
+
+/** Persists the signed-in user's appearance preference (per user, server-side). */
+async function setThemeModeActionImpl(mode: string): Promise<{ ok: true }> {
+  const { user } = await requireStoreSession();
+  if (!(THEME_MODES as readonly string[]).includes(mode)) {
+    throw new Error("Unknown theme mode.");
+  }
+  const db = await getDb();
+  await db
+    .update(t.staff)
+    .set({ themeMode: mode })
+    .where(eq(t.staff.id, user.id));
+  return { ok: true as const };
+}
+
+const MUTABLE_NOTIF_CATEGORIES = ["inventory", "sales", "billing"] as const;
+
+/** Mutes/unmutes a notification category for the signed-in user only.
+ *  "system" (security + platform alerts) can never be muted. */
+async function setNotificationPrefActionImpl(
+  category: string,
+  muted: boolean,
+): Promise<{ ok: true }> {
+  const { user } = await requireStoreSession();
+  if (!(MUTABLE_NOTIF_CATEGORIES as readonly string[]).includes(category)) {
+    throw new Error("That category cannot be muted.");
+  }
+  const db = await getDb();
+  await db
+    .insert(t.notificationPrefs)
+    .values({ userId: user.id, category, muted: muted ? 1 : 0 })
+    .onConflictDoUpdate({
+      target: [t.notificationPrefs.userId, t.notificationPrefs.category],
+      set: { muted: muted ? 1 : 0 },
+    });
+  return { ok: true as const };
+}
+
 /* ---------------- public actions (error-as-data wrappers) ---------------- */
 
 export const loginAction = safeAction(loginActionImpl);
@@ -2345,3 +2520,5 @@ export const fetchSocialConfig = safeAction(fetchSocialConfigImpl);
 export const platformSaveSocialConfig = safeAction(platformSaveSocialConfigImpl);
 export const markNotificationReadAction = safeAction(markNotificationReadActionImpl);
 export const markAllNotificationsReadAction = safeAction(markAllNotificationsReadActionImpl);
+export const setThemeModeAction = safeAction(setThemeModeActionImpl);
+export const setNotificationPrefAction = safeAction(setNotificationPrefActionImpl);

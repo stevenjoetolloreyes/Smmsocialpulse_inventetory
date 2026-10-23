@@ -18,7 +18,8 @@ import { HistoryLog } from "./HistoryLog";
 import { LabelsView } from "./LabelsView";
 import { SettingsView } from "./SettingsView";
 import { SubscriptionView } from "./SubscriptionView";
-import { NotificationsView, NotificationBell } from "./Notifications";
+import { NotificationsView, NotificationBell, NotificationPrefs } from "./Notifications";
+import { setThemeModeAction } from "@/server/actions";
 import { HelpButton } from "./HelpButton";
 import { PrintHost } from "./PrintHost";
 
@@ -560,7 +561,7 @@ function WelcomeBanner() {
 }
 
 export function AppShell() {
-  const { data, view, setView, toast, busy } = useStore();
+  const { data, view, setView, toast, busy, run } = useStore();
   const settings = data.settings;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -575,6 +576,48 @@ export function AppShell() {
   useEffect(() => {
     document.documentElement.style.setProperty("--brand", settings.primaryColor);
   }, [settings.primaryColor]);
+
+  // Appearance (light | dark | system): persisted per user on the
+  // server, mirrored to localStorage so the anti-flash script in the
+  // root layout can apply it before first paint.
+  const [themeMode, setThemeModeState] = useState<string>(() => {
+    try {
+      return localStorage.getItem("ims_theme_mode") || data.themeMode || "system";
+    } catch {
+      return data.themeMode || "system";
+    }
+  });
+  useEffect(() => {
+    // Keep in sync if the saved preference changes elsewhere.
+    if (data.themeMode && data.themeMode !== themeMode) {
+      setThemeModeState(data.themeMode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.themeMode]);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const dark =
+        themeMode === "dark" || (themeMode === "system" && mq.matches);
+      document.documentElement.classList.toggle("dark", dark);
+    };
+    apply();
+    try {
+      localStorage.setItem("ims_theme_mode", themeMode);
+    } catch {
+      /* private mode */
+    }
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [themeMode]);
+  const cycleTheme = () => {
+    const next =
+      themeMode === "light" ? "dark" : themeMode === "dark" ? "system" : "light";
+    setThemeModeState(next);
+    void run(() => setThemeModeAction(next)).catch(() => {
+      /* the choice still applies on this device via localStorage */
+    });
+  };
 
   // Lock body scroll while the mobile drawer is open.
   useEffect(() => {
@@ -717,6 +760,22 @@ export function AppShell() {
             <Icon name="crown" />
             <span className="hidden sm:inline">{plan.name}</span>
           </button>
+          <button
+            onClick={cycleTheme}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-500 transition hover:bg-stone-200"
+            aria-label={`Appearance: ${themeMode === "light" ? "Light" : themeMode === "dark" ? "Dark" : "System"}. Activate to change appearance.`}
+            title={`Appearance: ${themeMode === "light" ? "Light" : themeMode === "dark" ? "Dark" : "System (device)"}`}
+          >
+            <Icon
+              name={
+                themeMode === "dark"
+                  ? "moon"
+                  : themeMode === "system"
+                    ? "circle-half-stroke"
+                    : "sun"
+              }
+            />
+          </button>
           <NotificationBell />
           <UserMenu />
         </header>
@@ -737,7 +796,12 @@ export function AppShell() {
             {view === "labels" && <LabelsView />}
             {view === "settings" && <SettingsView />}
             {view === "subscription" && <SubscriptionView />}
-            {view === "notifications" && <NotificationsView />}
+            {view === "notifications" && (
+              <div className="space-y-4">
+                <NotificationsView />
+                <NotificationPrefs />
+              </div>
+            )}
           </div>
         </main>
 

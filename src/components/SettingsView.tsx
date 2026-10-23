@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "./store";
 import {
   Badge, Card, EmptyState, Icon, Modal, SectionTitle,
@@ -13,42 +13,127 @@ import type { SettingsDTO, StaffDTO } from "@/lib/types";
 
 const COLOR_PRESETS = ["#14532d", "#1d4ed8", "#7c3aed", "#b91c1c", "#0f766e", "#b45309", "#111827"];
 
+type SettingsTab = "general" | "users" | "security" | "deleted";
+
+/** Searchable index of the settings this page actually contains. */
+const SETTINGS_INDEX: { tab: SettingsTab; label: string; hint: string; keywords: string }[] = [
+  { tab: "general", label: "Store profile", hint: "Store name, phone, email, address, city, province, ZIP", keywords: "store name phone email address city province zip profile" },
+  { tab: "general", label: "Store logo & initials", hint: "Logo image shown on receipts and the sidebar", keywords: "logo image upload initials receipt sidebar branding" },
+  { tab: "general", label: "Store code (staff sign-in)", hint: "The code staff enter with their username and password", keywords: "store code staff sign in login access" },
+  { tab: "general", label: "Date format", hint: "How dates are shown across the app", keywords: "date format mdy dmy iso" },
+  { tab: "general", label: "Primary color & appearance", hint: "Brand color for the sidebar, buttons and highlights", keywords: "primary color theme appearance brand dark light" },
+  { tab: "general", label: "Product categories", hint: "Add and review product categories", keywords: "categories products add" },
+  { tab: "users", label: "User management", hint: "Add, edit, activate or deactivate store users", keywords: "users staff accounts roles password manager cashier add user" },
+  { tab: "security", label: "Sign-in activity", hint: "Recent successful and failed sign-ins for this store", keywords: "security login activity failed sign in attempts history" },
+  { tab: "security", label: "Security & POS rules", hint: "Amount tendered, returns, stock alerts", keywords: "security pos rules tendered returns stock alerts" },
+  { tab: "deleted", label: "Recently deleted", hint: "Restore or permanently delete removed products", keywords: "deleted restore trash products permanently" },
+];
+
 export function SettingsView() {
   const { data } = useStore();
-  const [tab, setTab] = useState<"general" | "users" | "security" | "deleted">("general");
+  const [tab, setTab] = useState<SettingsTab>("general");
+  const [query, setQuery] = useState("");
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return SETTINGS_INDEX.filter(
+      (e) => e.label.toLowerCase().includes(q) || e.keywords.includes(q),
+    );
+  }, [query]);
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-1.5">
-        {(
-          [
-            ["general", "General", "store"],
-            ["users", "User Management", "users"],
-            ["security", "Security", "shield-halved"],
-            ["deleted", "Recently Deleted", "trash-can-arrow-up"],
-          ] as const
-        ).map(([key, label, icon]) => (
+      {/* Settings search */}
+      <div className="relative max-w-md">
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-stone-400">
+          <Icon name="magnifying-glass" />
+        </span>
+        <input
+          className={`${inputCls} pl-10 pr-9`}
+          placeholder="Search settings…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search settings"
+        />
+        {query && (
           <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`rounded-xl px-3.5 py-2 text-sm font-semibold ${
-              tab === key ? "bg-[var(--brand)] text-white" : "bg-white text-stone-600 shadow-sm"
-            }`}
+            className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+            onClick={() => setQuery("")}
+            aria-label="Clear search"
           >
-            <Icon name={icon} /> {label}
-            {key === "deleted" && data.deletedProducts.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                {data.deletedProducts.length}
-              </span>
-            )}
+            <Icon name="xmark" />
           </button>
-        ))}
+        )}
       </div>
 
-      {tab === "general" && <GeneralTab />}
-      {tab === "users" && <UsersTab />}
-      {tab === "security" && <SecurityTab />}
-      {tab === "deleted" && <DeletedTab />}
+      {query.trim() !== "" ? (
+        <Card className="max-w-2xl p-3">
+          {matches.length === 0 ? (
+            <EmptyState
+              icon="magnifying-glass"
+              title={`No settings match "${query.trim()}"`}
+              hint="Try a different word — for example “logo”, “users” or “security”."
+            />
+          ) : (
+            <ul className="divide-y divide-stone-100">
+              {matches.map((m) => (
+                <li key={m.label}>
+                  <button
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-stone-50"
+                    onClick={() => {
+                      setTab(m.tab);
+                      setQuery("");
+                    }}
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-500">
+                      <Icon name="gear" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-stone-700">{m.label}</span>
+                      <span className="block truncate text-xs text-stone-400">{m.hint}</span>
+                    </span>
+                    <Icon name="chevron-right" className="text-xs text-stone-300" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ["general", "General", "store"],
+                ["users", "User Management", "users"],
+                ["security", "Security", "shield-halved"],
+                ["deleted", "Recently Deleted", "trash-can-arrow-up"],
+              ] as const
+            ).map(([key, label, icon]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`rounded-xl px-3.5 py-2 text-sm font-semibold ${
+                  tab === key ? "bg-[var(--brand)] text-white" : "bg-white text-stone-600 shadow-sm"
+                }`}
+              >
+                <Icon name={icon} /> {label}
+                {key === "deleted" && data.deletedProducts.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {data.deletedProducts.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {tab === "general" && <GeneralTab />}
+          {tab === "users" && <UsersTab />}
+          {tab === "security" && <SecurityTab />}
+          {tab === "deleted" && <DeletedTab />}
+        </>
+      )}
     </div>
   );
 }
@@ -57,19 +142,41 @@ function GeneralTab() {
   const { data, run, showToast } = useStore();
   const s = data.settings;
   const [form, setForm] = useState<SettingsDTO>({ ...s, security: { ...s.security } });
+  const [saved, setSaved] = useState<SettingsDTO>({ ...s, security: { ...s.security } });
   const [newCategory, setNewCategory] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saved" | "failed">("idle");
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+
+  // Warn before leaving with unsaved changes (refresh / close / navigate).
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
 
   const set = <K extends keyof SettingsDTO>(k: K, v: SettingsDTO[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   const save = async () => {
+    if (!/^#[0-9a-fA-F]{6}$/.test(form.primaryColor)) {
+      showToast("Primary color must be a valid hex color, like #14532d.");
+      setSaveState("failed");
+      return;
+    }
     setSaving(true);
     try {
       await run(() => saveSettings(form));
+      setSaved({ ...form, security: { ...form.security } });
+      setSaveState("saved");
       showToast("Settings saved.");
     } catch {
-      /* toasted */
+      setSaveState("failed");
+      /* error toasted by run(); the form keeps the entered values */
     } finally {
       setSaving(false);
     }
@@ -192,9 +299,26 @@ function GeneralTab() {
           </div>
         </div>
 
-        <button className={`${btnPrimary} mt-5`} onClick={() => void save()} disabled={saving}>
-          <Icon name="floppy-disk" /> {saving ? "Saving…" : "Save settings"}
-        </button>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button className={btnPrimary} onClick={() => void save()} disabled={saving}>
+            <Icon name="floppy-disk" /> {saving ? "Saving…" : "Save settings"}
+          </button>
+          {saving ? (
+            <span className="text-xs font-semibold text-stone-400">Saving…</span>
+          ) : dirty ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600">
+              <span className="h-2 w-2 rounded-full bg-amber-500" /> Unsaved changes
+            </span>
+          ) : saveState === "failed" ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600">
+              <Icon name="triangle-exclamation" /> Save failed — your entries are kept, try again
+            </span>
+          ) : saveState === "saved" ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+              <Icon name="check" /> Saved
+            </span>
+          ) : null}
+        </div>
       </Card>
 
       <Card className="h-fit p-5">
@@ -235,8 +359,8 @@ function GeneralTab() {
           </button>
         </div>
         <p className="mt-3 text-xs text-stone-400">
-          The dark sidebar and login screen keep the store's deep-green identity; the primary
-          color drives buttons, links and highlights across the app.
+          The primary color drives the sidebar, buttons, links and highlights across the
+          app. The login and registration screens keep the platform&apos;s own identity.
         </p>
       </Card>
     </div>
@@ -413,10 +537,15 @@ function UsersTab() {
 }
 
 function SecurityTab() {
-  const { data, run, showToast } = useStore();
+  const { data, run, showToast, user } = useStore();
   const s = data.settings;
   const [security, setSecurity] = useState({ ...s.security });
   const [saving, setSaving] = useState(false);
+
+  const events = data.loginEvents;
+  const successCount = events.filter((e) => e.success).length;
+  const failedCount = events.length - successCount;
+  const lastSuccess = events.find((e) => e.success);
 
   const toggles: { key: keyof typeof security; label: string; hint: string; icon: string }[] = [
     {
@@ -452,7 +581,94 @@ function SecurityTab() {
   };
 
   return (
-    <Card className="max-w-2xl p-5">
+    <div className="grid max-w-2xl gap-4">
+      {/* Security Center — real sign-in activity recorded by the login actions */}
+      <Card className="p-5">
+        <SectionTitle icon="shield-halved" title="Security Center" />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-stone-50 px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-stone-400">
+              Successful sign-ins
+            </p>
+            <p className="mt-1 text-xl font-extrabold text-stone-800">{successCount}</p>
+            <p className="text-xs text-stone-400">in recent activity</p>
+          </div>
+          <div className="rounded-2xl bg-stone-50 px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-stone-400">
+              Failed attempts
+            </p>
+            <p className={`mt-1 text-xl font-extrabold ${failedCount > 0 ? "text-red-600" : "text-stone-800"}`}>
+              {failedCount}
+            </p>
+            <p className="text-xs text-stone-400">in recent activity</p>
+          </div>
+          <div className="rounded-2xl bg-stone-50 px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-stone-400">
+              Last successful login
+            </p>
+            <p className="mt-1 truncate text-sm font-extrabold leading-7 text-stone-800">
+              {lastSuccess ? lastSuccess.username : "—"}
+            </p>
+            <p className="text-xs text-stone-400">
+              {lastSuccess ? fmtDateTime(lastSuccess.createdAt, s) : "No record yet"}
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-4 text-xs font-bold uppercase tracking-widest text-stone-400">
+          Recent sign-in activity (latest {events.length || 30})
+        </p>
+        {events.length === 0 ? (
+          <EmptyState
+            icon="shield-halved"
+            title="No sign-in activity recorded yet."
+            hint="Successful and failed sign-ins for this store are recorded from now on and will appear here."
+          />
+        ) : (
+          <ul className="mt-1 divide-y divide-stone-100">
+            {events.map((e) => (
+              <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs ${
+                    e.success ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
+                  }`}
+                >
+                  <Icon name={e.success ? "check" : "xmark"} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-stone-700">
+                    {e.username || "Unknown user"}
+                    <span className="ml-2 text-xs font-medium capitalize text-stone-400">{e.kind}</span>
+                  </span>
+                  <span className="block text-xs text-stone-400">
+                    {fmtDateTime(e.createdAt, s)}{e.ip ? ` · IP ${e.ip}` : ""}
+                  </span>
+                </span>
+                {e.success ? (
+                  <Badge tone="green">Success</Badge>
+                ) : (
+                  <Badge tone="red">Failed</Badge>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-4 rounded-2xl bg-stone-50 px-4 py-3 text-sm leading-relaxed text-stone-500">
+          <p>
+            <span className="font-semibold text-stone-700">This session:</span>{" "}
+            {user.name} ({user.role}) — signed in through the{" "}
+            {user.isPlatformAdmin ? "platform admin" : "store"} door.
+          </p>
+          <p className="mt-1">
+            Sessions are secure signed cookies (30 days with “Remember me”, otherwise
+            until the browser closes). There is no per-device session list to revoke —
+            signing out on a device ends that device&apos;s session.
+          </p>
+        </div>
+      </Card>
+
+      <Card className="p-5">
       <SectionTitle icon="shield-halved" title="Security & POS Rules" />
       <div className="space-y-3">
         {toggles.map((t) => (
@@ -480,7 +696,8 @@ function SecurityTab() {
       <button className={`${btnPrimary} mt-4`} onClick={() => void save()} disabled={saving}>
         <Icon name="floppy-disk" /> {saving ? "Saving…" : "Save security settings"}
       </button>
-    </Card>
+      </Card>
+    </div>
   );
 }
 

@@ -1,11 +1,21 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-brand: var(--brand, #14532d);
 }
 
 :root {
   --brand: #14532d;
+  --bg: #f5f5f4;
+  --ink: #1c1917;
+}
+
+.dark {
+  --bg: #0b0e13;
+  --ink: #e8ecf1;
+  color-scheme: dark;
 }
 
 html,
@@ -14,10 +24,18 @@ body {
 }
 
 body {
-  @apply bg-stone-100 text-stone-900 antialiased;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
   font-family:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
+}
+
+/* Visible keyboard focus everywhere, in the store's brand color. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 /* Slim scrollbars for panels */
@@ -54,6 +72,180 @@ body {
 /* Halo around the sidebar alert dot, matched to the sidebar surface. */
 .ims-alert-dot {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 55%, black);
+}
+
+/* ---------- dark mode bridge ----------
+   The app's palette is constrained (stone neutrals + pastel tints +
+   the brand variable), so dark mode remaps those utility classes to
+   layered dark surfaces under `.dark`. These rules are unlayered, so
+   they win over the layered utilities without any !important. Text and
+   status colors keep their meaning; only lightness changes. */
+.dark .bg-white {
+  background-color: #171b22;
+}
+.dark .bg-white\/90 {
+  background-color: rgb(23 27 34 / 0.92);
+}
+.dark .bg-white\/95 {
+  background-color: rgb(23 27 34 / 0.96);
+}
+.dark .bg-stone-50 {
+  background-color: #1d232d;
+}
+.dark .bg-stone-100 {
+  background-color: #12161d;
+}
+.dark .bg-stone-200 {
+  background-color: #262e3a;
+}
+.dark .bg-stone-200\/70 {
+  background-color: rgb(38 46 58 / 0.7);
+}
+.dark .bg-stone-300\/70 {
+  background-color: rgb(64 74 90 / 0.7);
+}
+.dark .bg-stone-800 {
+  background-color: #262e3a;
+}
+.dark .text-stone-900 {
+  color: #eef1f5;
+}
+.dark .text-stone-800 {
+  color: #e2e7ee;
+}
+.dark .text-stone-700 {
+  color: #c6cedb;
+}
+.dark .text-stone-600 {
+  color: #a9b2c1;
+}
+.dark .text-stone-500 {
+  color: #8d97a7;
+}
+.dark .text-stone-400 {
+  color: #6e7787;
+}
+.dark .text-stone-300 {
+  color: #525b69;
+}
+.dark .border-stone-100 {
+  border-color: rgb(255 255 255 / 0.07);
+}
+.dark .border-stone-200 {
+  border-color: rgb(255 255 255 / 0.11);
+}
+.dark .border-stone-300 {
+  border-color: rgb(255 255 255 / 0.16);
+}
+.dark .divide-stone-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(255 255 255 / 0.07);
+}
+.dark .divide-stone-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(255 255 255 / 0.11);
+}
+.dark .ring-stone-200 {
+  --tw-ring-color: rgb(255 255 255 / 0.11);
+}
+.dark .ring-stone-900\/5 {
+  --tw-ring-color: rgb(255 255 255 / 0.08);
+}
+.dark .placeholder\:text-stone-400::placeholder {
+  color: #6e7787;
+}
+.dark .hover\:bg-stone-50:hover {
+  background-color: #1d232d;
+}
+.dark .hover\:bg-stone-100:hover {
+  background-color: #232a35;
+}
+.dark .bg-emerald-50 {
+  background-color: rgb(21 128 61 / 0.16);
+}
+.dark .bg-emerald-100 {
+  background-color: rgb(21 128 61 / 0.25);
+}
+.dark .text-emerald-600,
+.dark .text-emerald-700 {
+  color: #4ade80;
+}
+.dark .border-emerald-200 {
+  border-color: rgb(74 222 128 / 0.35);
+}
+.dark .ring-emerald-200 {
+  --tw-ring-color: rgb(74 222 128 / 0.35);
+}
+.dark .bg-sky-50 {
+  background-color: rgb(2 132 199 / 0.14);
+}
+.dark .bg-sky-100 {
+  background-color: rgb(2 132 199 / 0.22);
+}
+.dark .text-sky-600,
+.dark .text-sky-700 {
+  color: #38bdf8;
+}
+.dark .bg-amber-50 {
+  background-color: rgb(217 119 6 / 0.14);
+}
+.dark .bg-amber-100 {
+  background-color: rgb(217 119 6 / 0.22);
+}
+.dark .text-amber-600,
+.dark .text-amber-700,
+.dark .text-amber-800 {
+  color: #fbbf24;
+}
+.dark .ring-amber-200 {
+  --tw-ring-color: rgb(251 191 36 / 0.35);
+}
+.dark .bg-violet-50 {
+  background-color: rgb(124 58 237 / 0.14);
+}
+.dark .bg-violet-100 {
+  background-color: rgb(124 58 237 / 0.24);
+}
+.dark .text-violet-600,
+.dark .text-violet-700 {
+  color: #c4b5fd;
+}
+.dark .bg-red-50 {
+  background-color: rgb(220 38 38 / 0.13);
+}
+.dark .bg-red-100 {
+  background-color: rgb(220 38 38 / 0.22);
+}
+.dark .text-red-500,
+.dark .text-red-600,
+.dark .text-red-700 {
+  color: #f87171;
+}
+.dark .border-red-200 {
+  border-color: rgb(248 113 113 / 0.35);
+}
+.dark .bg-orange-50 {
+  background-color: rgb(234 88 12 / 0.13);
+}
+.dark .bg-orange-100 {
+  background-color: rgb(234 88 12 / 0.22);
+}
+.dark .text-orange-600,
+.dark .text-orange-700 {
+  color: #fb923c;
+}
+.dark .bg-teal-100 {
+  background-color: rgb(13 148 136 / 0.22);
+}
+.dark .text-teal-700 {
+  color: #2dd4bf;
+}
+.dark .text-\[\#14532d\] {
+  color: #86c79b;
+}
+.dark .text-\[\#15803d\] {
+  color: #4ade80;
+}
+.dark .nice-scroll::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.22);
 }
 
 .ims-drawer {

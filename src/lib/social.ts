@@ -104,3 +104,8 @@ export function socialRedirectUri(provider: SocialProvider): string {
 export function providerLabel(provider: SocialProvider): string {
   return provider === "google" ? "Google" : "Facebook";
 }
+
+/** Cookie carrying the OAuth state value between start and callback.
+ *  Lives here (not in a route file) because Next.js route modules may
+ *  only export route fields. */
+export const SOCIAL_STATE_COOKIE = "ims_social_state";

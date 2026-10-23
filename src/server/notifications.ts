@@ -221,11 +221,24 @@ export async function loadNotifications(
   storeId: number,
   staffId: number,
 ): Promise<{ notifications: NotificationDTO[]; unreadCount: number }> {
-  const rows = await db
+  const allRows = await db
     .select()
     .from(t.notifications)
     .where(eq(t.notifications.storeId, storeId))
     .orderBy(desc(t.notifications.id));
+  // Per-user category preferences: muted categories are hidden for this
+  // user (and excluded from their unread count). "system" always shows —
+  // it carries security and platform alerts.
+  const prefRows = await db
+    .select()
+    .from(t.notificationPrefs)
+    .where(eq(t.notificationPrefs.userId, staffId));
+  const muted = new Set(
+    prefRows.filter((p) => p.muted === 1).map((p) => p.category),
+  );
+  const rows = allRows.filter(
+    (n) => n.category === "system" || !muted.has(n.category),
+  );
   const reads = await db
     .select()
     .from(t.notificationReads)

@@ -118,6 +118,42 @@ export const notificationReads = sqliteTable(
   (t) => [primaryKey({ columns: [t.notificationId, t.staffId] })],
 );
 
+/** Per-user notification preferences: categories the user has muted.
+ *  The "system" category (security + platform alerts) is never mutable. */
+export const notificationPrefs = sqliteTable(
+  "notification_prefs",
+  {
+    userId: integer("user_id").notNull(),
+    category: text("category").notNull(), // inventory | sales | billing
+    muted: integer("muted").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.category] })],
+);
+
+/** Real sign-in activity, recorded by the login actions (success and
+ *  failure). storeId/userId are NULL when the attempt matched no account
+ *  (e.g. a wrong username) or targeted the platform admin door. Passwords
+ *  and tokens are never written here. */
+export const loginEvents = sqliteTable(
+  "login_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    storeId: integer("store_id"),
+    userId: integer("user_id"),
+    username: text("username").notNull().default(""),
+    kind: text("kind").notNull().default("owner"), // owner | staff | admin
+    success: integer("success").notNull().default(0),
+    ip: text("ip").notNull().default(""),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("login_events_store_idx").on(t.storeId, t.createdAt),
+    index("login_events_user_idx").on(t.userId, t.createdAt),
+  ],
+);
+
 /* ---------------- tenant tables ---------------- */
 
 export const items = sqliteTable(
@@ -409,6 +445,8 @@ export const staff = sqliteTable(
     active: integer("active").notNull().default(1),
     emailVerified: integer("email_verified").notNull().default(0),
     isPlatformAdmin: integer("is_platform_admin").notNull().default(0),
+    // Per-user appearance preference: light | dark | system.
+    themeMode: text("theme_mode").notNull().default("system"),
     lastLogin: text("last_login").notNull().default(""),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()

@@ -237,6 +237,33 @@ export async function getStoreData(
   const plans = (await loadPlans(db)).map(toPlanDTO);
   const { notifications, unreadCount } = await loadNotifications(db, storeId, staffId);
 
+  // Appearance + notification preferences of the signed-in user.
+  const me = staffRows.find((s) => s.id === staffId);
+  const themeMode = me?.themeMode ?? "system";
+  const prefRows = await db
+    .select()
+    .from(t.notificationPrefs)
+    .where(eq(t.notificationPrefs.userId, staffId));
+  const mutedCategories = prefRows
+    .filter((p) => p.muted === 1 && p.category !== "system")
+    .map((p) => p.category) as StoreData["mutedCategories"];
+
+  // Recent sign-in activity for the Security Center (this store only).
+  const loginEventRows = await db
+    .select()
+    .from(t.loginEvents)
+    .where(eq(t.loginEvents.storeId, storeId))
+    .orderBy(desc(t.loginEvents.id))
+    .limit(30);
+  const loginEvents = loginEventRows.map((e) => ({
+    id: e.id,
+    username: e.username,
+    kind: e.kind,
+    success: e.success === 1,
+    ip: e.ip,
+    createdAt: e.createdAt.toISOString(),
+  }));
+
   return {
     products,
     deletedProducts,
@@ -255,5 +282,8 @@ export async function getStoreData(
     plans,
     notifications,
     unreadNotifications: unreadCount,
+    themeMode,
+    mutedCategories,
+    loginEvents,
   };
 }

@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "./store";
-import { Card, EmptyState, Icon } from "./ui";
+import { Card, EmptyState, Icon, SectionTitle } from "./ui";
 import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
+  setNotificationPrefAction,
 } from "@/server/actions";
 import type { NotificationCategory, NotificationDTO } from "@/lib/types";
 
@@ -289,6 +290,65 @@ export function NotificationsView() {
           ))}
         </ul>
       )}
+    </Card>
+  );
+}
+
+/** Per-user category preferences. Muting hides a category for this user
+ *  only; "system" (security + platform alerts) always stays on. */
+export function NotificationPrefs() {
+  const { data, run, showToast } = useStore();
+  const cats: { key: "inventory" | "sales" | "billing"; label: string; hint: string }[] = [
+    { key: "inventory", label: "Inventory", hint: "Low stock, out of stock and batch expiry alerts" },
+    { key: "sales", label: "Sales", hint: "Completed sales and processed returns" },
+    { key: "billing", label: "Billing", hint: "Plan expiry and subscription changes" },
+  ];
+  const toggle = async (key: "inventory" | "sales" | "billing", muted: boolean) => {
+    try {
+      await run(() => setNotificationPrefAction(key, muted));
+      showToast(muted ? "Category muted for you." : "Category unmuted.");
+    } catch {
+      /* toasted by run() */
+    }
+  };
+  return (
+    <Card className="p-5">
+      <SectionTitle icon="sliders" title="Notification preferences" />
+      <div className="space-y-3">
+        {cats.map((c) => {
+          const muted = data.mutedCategories.includes(c.key);
+          return (
+            <div key={c.key} className="flex items-start gap-3 rounded-2xl bg-stone-50 px-4 py-3">
+              <div className="flex-1">
+                <p className="font-semibold text-stone-700">{c.label}</p>
+                <p className="text-sm text-stone-500">{c.hint}</p>
+              </div>
+              <button
+                role="switch"
+                aria-checked={!muted}
+                aria-label={`${c.label} notifications`}
+                onClick={() => void toggle(c.key, !muted)}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition ${!muted ? "bg-[var(--brand)]" : "bg-stone-300"}`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${!muted ? "left-[22px]" : "left-0.5"}`}
+                />
+              </button>
+            </div>
+          );
+        })}
+        <div className="flex items-start gap-3 rounded-2xl bg-stone-50 px-4 py-3 opacity-80">
+          <div className="flex-1">
+            <p className="font-semibold text-stone-700">System & security</p>
+            <p className="text-sm text-stone-500">
+              Failed sign-in alerts and platform announcements — always on, for your safety.
+            </p>
+          </div>
+          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+            Always on
+          </span>
+        </div>
+      </div>
     </Card>
   );
 }

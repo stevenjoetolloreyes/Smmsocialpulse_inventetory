@@ -6,11 +6,11 @@ import * as t from "@/lib/schema";
 import { setSessionCookie, type SessionUser } from "@/lib/auth";
 import {
   getSocialConfig,
+  SOCIAL_STATE_COOKIE,
   socialRedirectUri,
   type SocialProvider,
 } from "@/lib/social";
 import { addHistory, loadStore } from "@/server/helpers";
-import { SOCIAL_STATE_COOKIE } from "../start/route";
 
 export const dynamic = "force-dynamic";
 

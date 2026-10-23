@@ -4,13 +4,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import {
   getSocialConfig,
+  SOCIAL_STATE_COOKIE,
   socialRedirectUri,
   type SocialProvider,
 } from "@/lib/social";
 
 export const dynamic = "force-dynamic";
-
-export const SOCIAL_STATE_COOKIE = "ims_social_state";
 
 /**
  * Starts the OAuth Authorization Code flow for a store owner. When the
