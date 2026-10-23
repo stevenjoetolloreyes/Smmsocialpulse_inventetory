@@ -105,6 +105,11 @@ export default function LoginPage() {
     setBusy(true);
     try {
       unwrapActionResult(await loginAction(identifier, ownerPw, "owner", "", rememberMe));
+      try {
+        sessionStorage.setItem("ims_welcome", "1");
+      } catch {
+        /* private mode */
+      }
       router.push("/");
       router.refresh();
     } catch (err) {
@@ -120,6 +125,11 @@ export default function LoginPage() {
     setBusy(true);
     try {
       unwrapActionResult(await loginAction(staffUsername, staffPw, "staff", storeCode, rememberMe));
+      try {
+        sessionStorage.setItem("ims_welcome", "1");
+      } catch {
+        /* private mode */
+      }
       router.push("/");
       router.refresh();
     } catch (err) {

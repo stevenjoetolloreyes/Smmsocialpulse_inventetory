@@ -450,6 +450,100 @@ function UserMenu() {
   );
 }
 
+/**
+ * Branded splash shown briefly on every full app load — right after
+ * sign-in and on every page refresh — while the workspace settles.
+ * Purely presentational: the data is already loaded by the server.
+ */
+function SplashGate() {
+  const [phase, setPhase] = useState<"show" | "fade" | "gone">("show");
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase("fade"), 900);
+    const t2 = setTimeout(() => setPhase("gone"), 1380);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+  if (phase === "gone") return null;
+  return (
+    <div
+      className={`ims-splash fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#f6f8f6] transition-opacity duration-[480ms] ${
+        phase === "fade" ? "pointer-events-none opacity-0" : "opacity-100"
+      }`}
+      aria-hidden="true"
+    >
+      <div className="ims-splash-logo flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-[#16a34a] to-[#14532d] text-4xl text-white shadow-2xl shadow-green-900/25">
+        <Icon name="boxes-stacked" />
+      </div>
+      <p className="mt-5 px-4 text-center text-xl font-extrabold tracking-tight text-stone-800">
+        Inventory Management System
+      </p>
+      <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.22em] text-stone-400">
+        Store Workspace
+      </p>
+      <div className="mt-7 h-1.5 w-44 overflow-hidden rounded-full bg-stone-200">
+        <div className="ims-splash-bar h-full w-16 rounded-full bg-[#16a34a]" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Welcome back!" banner shown once per sign-in: the login page leaves
+ * an `ims_welcome` flag in sessionStorage, and this banner appears as
+ * the splash fades, then auto-dismisses (or via its close button).
+ */
+function WelcomeBanner() {
+  const { user } = useStore();
+  const [state, setState] = useState<"wait" | "show" | "gone">("wait");
+  useEffect(() => {
+    let flagged = false;
+    try {
+      flagged = sessionStorage.getItem("ims_welcome") === "1";
+      if (flagged) sessionStorage.removeItem("ims_welcome");
+    } catch {
+      /* private mode */
+    }
+    if (!flagged) {
+      setState("gone");
+      return;
+    }
+    const t1 = setTimeout(() => setState("show"), 1450);
+    const t2 = setTimeout(() => setState("gone"), 6400);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+  if (state !== "show") return null;
+  return (
+    <div
+      className="ims-welcome no-print fixed inset-x-0 top-4 z-[90] mx-auto w-[min(92vw,430px)]"
+      role="status"
+    >
+      <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#16a34a] to-[#14532d] px-4 py-3 text-white shadow-2xl shadow-green-900/30 ring-1 ring-white/25">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20">
+          <Icon name="check" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold leading-tight">Welcome back!</p>
+          <p className="truncate text-xs text-white/80">
+            {user.name} · signed in successfully
+          </p>
+        </div>
+        <button
+          onClick={() => setState("gone")}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/85 transition hover:bg-white/20"
+          aria-label="Dismiss"
+        >
+          <Icon name="xmark" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function AppShell() {
   const { data, view, setView, toast, busy } = useStore();
   const settings = data.settings;
@@ -505,6 +599,9 @@ export function AppShell() {
       className="flex min-h-screen"
       style={{ "--brand": settings.primaryColor } as CSSProperties}
     >
+      <SplashGate />
+      <WelcomeBanner />
+
       {/* Sidebar — desktop (≥1024px): floating, persistent, collapsible */}
       <aside
         className={`ims-side no-print sticky ml-3 hidden shrink-0 flex-col text-white transition-[width] duration-300 lg:flex ${
@@ -610,21 +707,23 @@ export function AppShell() {
         </header>
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-8 pt-4 lg:px-6">
-          {view === "dashboard" && <Dashboard />}
-          {view === "pos" && <Pos />}
-          {view === "scan" && <ScanView />}
-          {view === "inventory" && <Inventory />}
-          {view === "receiving" && <Receiving />}
-          {view === "bulk" && <BulkRestock />}
-          {view === "status" && <ProductStatus />}
-          {view === "suppliers" && <Suppliers />}
-          {view === "sales-report" && <SalesReport />}
-          {view === "inventory-report" && <InventoryReport />}
-          {view === "history" && <HistoryLog />}
-          {view === "labels" && <LabelsView />}
-          {view === "settings" && <SettingsView />}
-          {view === "subscription" && <SubscriptionView />}
-          {view === "notifications" && <NotificationsView />}
+          <div key={view} className="ims-view-in">
+            {view === "dashboard" && <Dashboard />}
+            {view === "pos" && <Pos />}
+            {view === "scan" && <ScanView />}
+            {view === "inventory" && <Inventory />}
+            {view === "receiving" && <Receiving />}
+            {view === "bulk" && <BulkRestock />}
+            {view === "status" && <ProductStatus />}
+            {view === "suppliers" && <Suppliers />}
+            {view === "sales-report" && <SalesReport />}
+            {view === "inventory-report" && <InventoryReport />}
+            {view === "history" && <HistoryLog />}
+            {view === "labels" && <LabelsView />}
+            {view === "settings" && <SettingsView />}
+            {view === "subscription" && <SubscriptionView />}
+            {view === "notifications" && <NotificationsView />}
+          </div>
         </main>
 
         <HelpButton />
