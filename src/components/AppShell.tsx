@@ -168,7 +168,7 @@ function NavList({
           >
             <Icon name={item.icon} className="text-base" />
             {alert > 0 && (
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[#14532d]" />
+              <span className="ims-alert-dot absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
             )}
           </button>
           <RailTip label={item.label} />
@@ -492,7 +492,7 @@ function SplashGate() {
         Store Workspace
       </p>
       <div className="mt-7 h-1.5 w-44 overflow-hidden rounded-full bg-stone-200">
-        <div className="ims-splash-bar h-full w-16 rounded-full bg-[#16a34a]" />
+        <div className="ims-splash-bar h-full w-16 rounded-full bg-[var(--brand)]" />
       </div>
     </div>
   );
@@ -531,7 +531,13 @@ function WelcomeBanner() {
       className="ims-welcome no-print fixed inset-x-0 top-4 z-[90] mx-auto w-[min(92vw,430px)]"
       role="status"
     >
-      <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#16a34a] to-[#14532d] px-4 py-3 text-white shadow-2xl shadow-green-900/30 ring-1 ring-white/25">
+      <div
+        className="flex items-center gap-3 rounded-2xl px-4 py-3 text-white shadow-2xl shadow-stone-900/25 ring-1 ring-white/25"
+        style={{
+          background:
+            "linear-gradient(90deg, color-mix(in srgb, var(--brand) 72%, white), var(--brand))",
+        }}
+      >
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20">
           <Icon name="check" />
         </span>

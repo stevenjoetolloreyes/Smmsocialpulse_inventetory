@@ -31,21 +31,29 @@ body {
 }
 
 /* ---------- floating edge sidebar / drawer ---------- */
-/* Deep green brand gradient (dark pine → forest), glass rim, soft shadow. */
+/* Brand gradient derived from the store's Primary Color (--brand):
+   deep shade → mid shade → the brand color itself → a lighter tint.
+   Any primary color a store picks themes the sidebar automatically. */
 .ims-side,
 .ims-drawer {
+  background: var(--brand);
   background: linear-gradient(
     168deg,
-    #0c2317 0%,
-    #12291b 34%,
-    #14532d 82%,
-    #166534 125%
+    color-mix(in srgb, var(--brand) 40%, black) 0%,
+    color-mix(in srgb, var(--brand) 55%, black) 34%,
+    var(--brand) 82%,
+    color-mix(in srgb, var(--brand) 85%, white) 125%
   );
   border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 30px;
   box-shadow:
     0 24px 60px -18px rgb(2 8 30 / 0.55),
     inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+/* Halo around the sidebar alert dot, matched to the sidebar surface. */
+.ims-alert-dot {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 55%, black);
 }
 
 .ims-drawer {
