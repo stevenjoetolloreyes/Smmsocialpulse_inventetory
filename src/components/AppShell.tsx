@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useStore, type ViewKey } from "./store";
 import { Icon } from "./ui";
 import { Dashboard } from "./Dashboard";
@@ -26,6 +26,11 @@ import { PrintHost } from "./PrintHost";
  * drawer: direct items first, then collapsible groups (chevron toggles,
  * multiple groups may be open at once). QR Labels stays under Reports,
  * where it has always lived.
+ *
+ * Presentation: a floating "edge" panel — deep-navy → royal-blue
+ * gradient with a violet tail, 30px corners, glass border and soft
+ * shadow — as an off-canvas drawer on mobile and a persistent,
+ * collapsible (icon-only) rail on desktop.
  */
 const NAV_DIRECT: { key: ViewKey; label: string; icon: string }[] = [
   { key: "dashboard", label: "Dashboard", icon: "gauge-high" },
@@ -94,8 +99,29 @@ const TITLES: Record<ViewKey, string> = {
   notifications: "Notifications",
 };
 
+/** Floating tooltip shown beside icon-only (collapsed) rail buttons. */
+function RailTip({ label }: { label: string }) {
+  return (
+    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#0a1f44] px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-xl ring-1 ring-white/20 transition-opacity duration-150 group-hover:opacity-100">
+      {label}
+    </span>
+  );
+}
+
+const itemBase =
+  "ims-item flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]";
+const itemActive =
+  "bg-white text-[#0a1f44] shadow-lg shadow-blue-950/30 ring-1 ring-white/70";
+const itemIdle = "text-white/85 hover:bg-white/10 hover:text-white";
+
 /** The grouped navigation list — identical in the sidebar and the drawer. */
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+function NavList({
+  onNavigate,
+  collapsed = false,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const { data, view, setView } = useStore();
   const lowCount = data.products.filter(
     (p) => p.quantity > 0 && p.quantity <= p.reorderLevel,
@@ -118,17 +144,62 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
     onNavigate?.();
   };
 
-  const itemCls = (active: boolean) =>
-    `flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
-      active ? "bg-white text-[#12291b] shadow" : "text-white/85 hover:bg-white/10"
-    }`;
+  const alertFor = (key: ViewKey) =>
+    key === "inventory" ? lowCount + outCount : 0;
 
-  const renderItem = (item: { key: ViewKey; label: string; icon: string }, nested = false) => {
+  if (collapsed) {
+    // Icon-only rail: every destination stays reachable, groups flatten
+    // into their items under a thin divider, each with a tooltip.
+    const railItem = (item: { key: ViewKey; label: string; icon: string }) => {
+      const active = view === item.key;
+      const alert = alertFor(item.key);
+      return (
+        <li key={item.key} className="group relative">
+          <button
+            onClick={() => go(item.key)}
+            className={`ims-item relative flex w-full items-center justify-center rounded-2xl py-2.5 transition-all duration-200 active:scale-95 ${
+              active
+                ? "bg-white text-[#0a1f44] shadow-lg shadow-blue-950/30 ring-1 ring-white/70"
+                : "text-white/85 hover:bg-white/10 hover:text-white"
+            }`}
+            aria-label={item.label}
+            aria-current={active ? "page" : undefined}
+          >
+            <Icon name={item.icon} className="text-base" />
+            {alert > 0 && (
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[#123a7a]" />
+            )}
+          </button>
+          <RailTip label={item.label} />
+        </li>
+      );
+    };
+    return (
+      <nav className="nice-scroll flex-1 overflow-y-auto px-2.5 pb-4" aria-label="Main">
+        <ul className="space-y-1 pt-1">{NAV_DIRECT.map(railItem)}</ul>
+        {NAV_GROUPS.map((group) => (
+          <div key={group.name}>
+            <div className="mx-2 my-3 border-t border-white/12" aria-hidden="true" />
+            <ul className="space-y-1">{group.items.map(railItem)}</ul>
+          </div>
+        ))}
+      </nav>
+    );
+  }
+
+  const renderItem = (
+    item: { key: ViewKey; label: string; icon: string },
+    nested = false,
+  ) => {
     const active = view === item.key;
-    const alert = item.key === "inventory" ? lowCount + outCount : 0;
+    const alert = alertFor(item.key);
     return (
       <li key={item.key}>
-        <button onClick={() => go(item.key)} className={`${itemCls(active)} ${nested ? "pl-11" : ""}`}>
+        <button
+          onClick={() => go(item.key)}
+          className={`${itemBase} ${active ? itemActive : itemIdle} ${nested ? "pl-11" : ""}`}
+          aria-current={active ? "page" : undefined}
+        >
           {!nested && <Icon name={item.icon} className="w-5 text-center" />}
           <span className="flex-1 text-left">{item.label}</span>
           {alert > 0 && (
@@ -142,7 +213,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   };
 
   return (
-    <nav className="nice-scroll flex-1 overflow-y-auto px-3 pb-4">
+    <nav className="nice-scroll flex-1 overflow-y-auto px-3 pb-4" aria-label="Main">
       <ul className="space-y-0.5 pt-1">
         {NAV_DIRECT.map((item) => renderItem(item))}
       </ul>
@@ -154,18 +225,18 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
               onClick={() =>
                 setOpenGroups((prev) => ({ ...prev, [group.name]: !prev[group.name] }))
               }
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold text-white/90 transition hover:bg-white/10"
+              className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-bold text-white/90 transition hover:bg-white/10"
               aria-expanded={open}
             >
               <Icon name={group.icon} className="w-5 text-center" />
               <span className="flex-1 text-left">{group.name}</span>
               <Icon
                 name="chevron-down"
-                className={`text-xs text-white/50 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+                className={`ims-chevron text-xs text-white/50 ${open ? "rotate-180" : ""}`}
               />
             </button>
             <div
-              className={`grid transition-all duration-300 ease-in-out ${
+              className={`ims-acc grid ${
                 open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
               }`}
             >
@@ -183,16 +254,64 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 /** Pinned bottom rows shared by the sidebar and the drawer. */
-function NavBottom({ onNavigate }: { onNavigate?: () => void }) {
+function NavBottom({
+  onNavigate,
+  collapsed = false,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const { user, logout } = useStore();
+
+  if (collapsed) {
+    return (
+      <div className="border-t border-white/12 px-2.5 py-3">
+        <div className="group relative">
+          <button
+            onClick={() => {
+              onNavigate?.();
+              window.dispatchEvent(new CustomEvent("ims:open-help"));
+            }}
+            className="ims-item flex w-full items-center justify-center rounded-2xl py-2.5 text-white/85 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-95"
+            aria-label="Help & Support"
+          >
+            <Icon name="circle-question" className="text-base" />
+          </button>
+          <RailTip label="Help & Support" />
+        </div>
+        <div className="group relative mt-1">
+          <div
+            className="flex items-center justify-center py-1.5"
+            aria-label={`${user.name} · ${user.role}`}
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-sm font-bold">
+              {user.name.slice(0, 1).toUpperCase()}
+            </span>
+          </div>
+          <RailTip label={`${user.name} · ${user.role}`} />
+        </div>
+        <div className="group relative mt-1">
+          <button
+            onClick={() => void logout()}
+            className="ims-item flex w-full items-center justify-center rounded-2xl py-2.5 text-white/85 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-95"
+            aria-label="Log out"
+          >
+            <Icon name="arrow-right-from-bracket" className="text-base" />
+          </button>
+          <RailTip label="Log out" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="border-t border-white/10 px-3 py-3">
+    <div className="border-t border-white/12 px-3 py-3">
       <button
         onClick={() => {
           onNavigate?.();
           window.dispatchEvent(new CustomEvent("ims:open-help"));
         }}
-        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10"
+        className="ims-item flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium text-white/85 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-[0.98]"
       >
         <Icon name="circle-question" className="w-5 text-center" />
         <span className="flex-1 text-left">Help &amp; Support</span>
@@ -218,7 +337,7 @@ function NavBottom({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function StoreLogo({ size = "h-11 w-11", rounded = "rounded-xl" }: { size?: string; rounded?: string }) {
+function StoreLogo({ size = "h-11 w-11", rounded = "rounded-2xl" }: { size?: string; rounded?: string }) {
   const { data } = useStore();
   const settings = data.settings;
   if (settings.logoData) {
@@ -227,16 +346,58 @@ function StoreLogo({ size = "h-11 w-11", rounded = "rounded-xl" }: { size?: stri
       <img
         src={settings.logoData}
         alt=""
-        className={`${size} ${rounded} shrink-0 object-cover ring-1 ring-white/20`}
+        className={`${size} ${rounded} shrink-0 object-cover ring-1 ring-white/25`}
       />
     );
   }
   return (
     <span
-      className={`flex ${size} ${rounded} shrink-0 items-center justify-center bg-white/10 text-lg font-bold`}
+      className={`flex ${size} ${rounded} shrink-0 items-center justify-center bg-white/12 text-lg font-bold ring-1 ring-white/15`}
     >
       {settings.logoText || "MS"}
     </span>
+  );
+}
+
+/** Sidebar/drawer header: logo, WORKSPACE label, store name, optional close. */
+function SideHeader({
+  onClose,
+  collapsed = false,
+  closeRef,
+}: {
+  onClose?: () => void;
+  collapsed?: boolean;
+  closeRef?: React.RefObject<HTMLButtonElement | null>;
+}) {
+  const { data } = useStore();
+  const settings = data.settings;
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center px-2 pb-2 pt-5">
+        <StoreLogo />
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3 px-5 pb-3 pt-5">
+      <StoreLogo />
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50">
+          Workspace
+        </p>
+        <p className="truncate font-bold leading-tight">{settings.storeName}</p>
+      </div>
+      {onClose && (
+        <button
+          ref={closeRef}
+          onClick={onClose}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/85 ring-1 ring-white/15 transition hover:bg-white/20 active:scale-95"
+          aria-label="Close menu"
+        >
+          <Icon name="xmark" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -296,6 +457,14 @@ export function AppShell() {
   const { data, view, setView, toast, busy } = useStore();
   const settings = data.settings;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("ims_sidebar_collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     document.documentElement.style.setProperty("--brand", settings.primaryColor);
@@ -309,6 +478,28 @@ export function AppShell() {
     };
   }, [drawerOpen]);
 
+  // Escape closes the drawer; focus lands on its close button on open.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    closeBtnRef.current?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      try {
+        localStorage.setItem("ims_sidebar_collapsed", prev ? "0" : "1");
+      } catch {
+        /* private mode */
+      }
+      return !prev;
+    });
+  };
+
   const plan = data.plan;
   const paidPlan = plan.id !== "free";
 
@@ -317,49 +508,70 @@ export function AppShell() {
       className="flex min-h-screen"
       style={{ "--brand": settings.primaryColor } as CSSProperties}
     >
-      {/* Sidebar — desktop (≥1024px) */}
-      <aside className="no-print sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-[#12291b] text-white lg:flex">
-        <div className="flex items-center gap-3 px-5 pb-4 pt-5">
-          <StoreLogo />
-          <div className="min-w-0">
-            <p className="truncate font-bold leading-tight">{settings.storeName}</p>
-            <p className="text-xs text-white/60">Inventory Management</p>
+      {/* Sidebar — desktop (≥1024px): floating, persistent, collapsible */}
+      <aside
+        className={`ims-side no-print sticky ml-3 hidden shrink-0 flex-col text-white transition-[width] duration-300 lg:flex ${
+          collapsed ? "w-[84px]" : "w-64"
+        }`}
+        style={{
+          top: "max(12px, env(safe-area-inset-top))",
+          height: "calc(100dvh - 24px)",
+        }}
+        aria-label="Sidebar"
+      >
+        <SideHeader collapsed={collapsed} />
+        {!collapsed && (
+          <div className="flex justify-end px-4 pb-1">
+            <button
+              onClick={toggleCollapsed}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs text-white/75 ring-1 ring-white/15 transition hover:bg-white/20"
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
+            >
+              <Icon name="chevron-left" />
+            </button>
           </div>
-        </div>
-        <NavList />
-        <NavBottom />
+        )}
+        {collapsed && (
+          <div className="flex justify-center pb-1">
+            <button
+              onClick={toggleCollapsed}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs text-white/75 ring-1 ring-white/15 transition hover:bg-white/20"
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+            >
+              <Icon name="chevron-right" />
+            </button>
+          </div>
+        )}
+        <NavList collapsed={collapsed} />
+        <NavBottom collapsed={collapsed} />
       </aside>
 
-      {/* Mobile drawer (<1024px): same navigation, slid in from the left */}
+      {/* Mobile drawer (<1024px): floating off-canvas, same navigation */}
       <div
         className={`fixed inset-0 z-50 lg:hidden ${drawerOpen ? "" : "pointer-events-none"}`}
         aria-hidden={!drawerOpen}
       >
         <div
           onClick={() => setDrawerOpen(false)}
-          className={`absolute inset-0 bg-black/50 transition-opacity duration-300 ${
+          className={`ims-backdrop absolute inset-0 bg-[#060d1f]/55 backdrop-blur-[3px] ${
             drawerOpen ? "opacity-100" : "opacity-0"
           }`}
         />
         <aside
-          className={`no-print absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col bg-[#12291b] text-white shadow-2xl transition-transform duration-300 ease-in-out ${
-            drawerOpen ? "translate-x-0" : "-translate-x-full"
+          className={`ims-drawer no-print absolute flex flex-col text-white ${
+            drawerOpen ? "ims-drawer-open" : "ims-drawer-closed"
           }`}
+          style={{
+            left: "max(10px, env(safe-area-inset-left))",
+            top: "max(10px, env(safe-area-inset-top))",
+            bottom: "max(10px, env(safe-area-inset-bottom))",
+            width: "min(88vw, 340px)",
+          }}
+          aria-label="Menu"
         >
-          <div className="flex items-center gap-3 px-4 pb-3 pt-4">
-            <StoreLogo />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-bold leading-tight">{settings.storeName}</p>
-              <p className="text-xs text-white/60">Inventory Management</p>
-            </div>
-            <button
-              onClick={() => setDrawerOpen(false)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/85 transition hover:bg-white/20"
-              aria-label="Close menu"
-            >
-              <Icon name="xmark" />
-            </button>
-          </div>
+          <SideHeader onClose={() => setDrawerOpen(false)} closeRef={closeBtnRef} />
           <NavList onNavigate={() => setDrawerOpen(false)} />
           <NavBottom onNavigate={() => setDrawerOpen(false)} />
         </aside>

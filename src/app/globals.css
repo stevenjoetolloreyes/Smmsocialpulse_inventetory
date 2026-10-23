@@ -30,6 +30,72 @@ body {
   border-radius: 999px;
 }
 
+/* ---------- floating edge sidebar / drawer ---------- */
+/* Deep navy → royal blue with a violet tail, glass rim, soft shadow. */
+.ims-side,
+.ims-drawer {
+  background: linear-gradient(
+    168deg,
+    #0a1f44 0%,
+    #10315f 34%,
+    #1d4ed8 82%,
+    #4f46e5 125%
+  );
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 30px;
+  box-shadow:
+    0 24px 60px -18px rgb(2 8 30 / 0.55),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+.ims-drawer {
+  will-change: transform, opacity;
+}
+.ims-drawer-open {
+  transform: translateX(0) scale(1);
+  opacity: 1;
+  visibility: visible;
+  transition:
+    transform 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 300ms ease,
+    visibility 0s;
+}
+.ims-drawer-closed {
+  transform: translateX(-112%) scale(0.98);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 240ms ease,
+    visibility 0s linear 320ms;
+}
+
+.ims-backdrop {
+  transition: opacity 320ms ease;
+}
+
+.ims-acc {
+  transition:
+    grid-template-rows 340ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 260ms ease;
+}
+
+.ims-chevron {
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ims-drawer,
+  .ims-backdrop,
+  .ims-side,
+  .ims-acc,
+  .ims-chevron,
+  .ims-item {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
 /* ---------- printing: receipts & labels ---------- */
 .print-area {
   display: none;
