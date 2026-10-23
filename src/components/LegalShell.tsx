@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Icon } from "@/components/ui";
+import { LOGO_SRC } from "@/lib/logo";
 
 export default function LegalShell({
   title,
@@ -15,9 +15,11 @@ export default function LegalShell({
     <main className="relative min-h-screen bg-[linear-gradient(155deg,#cdeffd_0%,#d8f3e2_32%,#eef6e9_58%,#fdf0d3_100%)] px-4 py-10">
       <div className="relative mx-auto w-full max-w-2xl rounded-[24px] bg-white/95 p-7 shadow-[0_24px_60px_-16px_rgba(20,83,45,0.35)] ring-1 ring-black/5 sm:p-9">
         <div className="mb-5 flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#16a34a] to-[#14532d] text-lg text-white shadow-md">
-            <Icon name="boxes-stacked" />
-          </span>
+          <img
+            src={LOGO_SRC}
+            alt="Inventory Management System logo"
+            className="h-11 w-11 rounded-2xl object-cover shadow-md ring-1 ring-black/5"
+          />
           <div>
             <h1 className="text-xl font-extrabold leading-tight text-[#14532d]">{title}</h1>
             <p className="text-xs text-stone-400">Inventory Management System · Last updated {updated}</p>

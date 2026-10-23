@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useStore, type ViewKey } from "./store";
 import { Icon } from "./ui";
+import { LOGO_SRC } from "@/lib/logo";
 import { Dashboard } from "./Dashboard";
 import { Pos } from "./Pos";
 import { Inventory } from "./Inventory";
@@ -479,9 +480,11 @@ function SplashGate() {
       }`}
       aria-hidden="true"
     >
-      <div className="ims-splash-logo flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-[#16a34a] to-[#14532d] text-4xl text-white shadow-2xl shadow-green-900/25">
-        <Icon name="boxes-stacked" />
-      </div>
+      <img
+        src={LOGO_SRC}
+        alt=""
+        className="ims-splash-logo h-24 w-24 rounded-[26px] object-cover shadow-2xl shadow-green-900/25 ring-1 ring-black/5"
+      />
       <p className="mt-5 px-4 text-center text-xl font-extrabold tracking-tight text-stone-800">
         Inventory Management System
       </p>

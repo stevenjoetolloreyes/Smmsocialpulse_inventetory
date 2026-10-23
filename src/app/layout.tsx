@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { LOGO_SRC } from "@/lib/logo";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,7 +13,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href={LOGO_SRC} type="image/jpeg" />
         {/* Font Awesome Free Solid 6.5.2 — the owner's supplied icon pack. */}
         <link
           rel="stylesheet"

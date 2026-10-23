@@ -14,6 +14,7 @@ import { unwrapActionResult } from "@/lib/actionResult";
 import type { PlatformDataDTO, SocialConfigDTO } from "@/lib/types";
 import { fmtDate, fmtDateTime, peso } from "@/lib/format";
 import { Badge, Card, EmptyState, Icon, Modal, SectionTitle, btnGhost, btnPrimary, inputCls, labelCls } from "./ui";
+import { LOGO_SRC } from "@/lib/logo";
 
 const PLAN_META: Record<string, { label: string; price: number; priceYearly: number }> = {
   free: { label: "Free", price: 0, priceYearly: 0 },
@@ -138,8 +139,12 @@ export function PlatformView({
   return (
     <div className="min-h-screen bg-stone-100">
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-stone-200 bg-[#12291b] px-4 py-3 text-white lg:px-6">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
-          <Icon name="boxes-stacked" />
+        <span className="block h-9 w-9 overflow-hidden rounded-lg bg-white">
+          <img
+            src={LOGO_SRC}
+            alt="Inventory Management System logo"
+            className="h-full w-full object-cover"
+          />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-bold leading-tight">Platform Console</p>

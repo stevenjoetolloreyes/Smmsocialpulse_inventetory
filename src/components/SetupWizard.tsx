@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { completeStoreSetup, logoutAction } from "@/server/actions";
 import { unwrapActionResult } from "@/lib/actionResult";
 import { Icon } from "./ui";
+import { LOGO_SRC } from "@/lib/logo";
 import { AuthBackground, AuthError } from "./AuthShell";
 
 type SetupForm = {
@@ -108,8 +109,12 @@ export function SetupWizard({
       <div className="relative grid w-full max-w-4xl overflow-hidden rounded-[24px] bg-white/95 shadow-[0_24px_60px_-16px_rgba(20,83,45,0.35)] ring-1 ring-black/5 backdrop-blur md:grid-cols-[300px_1fr]">
         {/* Left dark panel */}
         <div className="flex flex-col bg-[#12291b] p-7 text-white">
-          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-xl">
-            <Icon name="boxes-stacked" />
+          <span className="mb-4 block h-12 w-12 overflow-hidden rounded-2xl bg-white shadow-md">
+            <img
+              src={LOGO_SRC}
+              alt="Inventory Management System logo"
+              className="h-full w-full object-cover"
+            />
           </span>
           <h1 className="text-xl font-extrabold leading-snug">
             Hi {username}, let&apos;s build your store

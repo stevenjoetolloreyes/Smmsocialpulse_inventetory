@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Icon } from "./ui";
+import { LOGO_SRC } from "@/lib/logo";
 
 /* ------------------------------------------------------------------ */
 /*  Background v2 (Steven, Oct 23): like the BentaHub screenshot he  */
@@ -329,9 +330,11 @@ export function AuthCard({
       <AuthBackground />
       <div className="relative w-full max-w-md rounded-[24px] bg-white/95 p-7 shadow-[0_24px_60px_-16px_rgba(20,83,45,0.35)] ring-1 ring-black/5 backdrop-blur sm:p-9">
         <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#16a34a] to-[#14532d] text-2xl text-white shadow-md">
-            <Icon name="boxes-stacked" />
-          </span>
+          <img
+            src={LOGO_SRC}
+            alt="Inventory Management System logo"
+            className="mx-auto mb-3 h-16 w-16 rounded-2xl object-cover shadow-md ring-1 ring-black/5"
+          />
           <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-[#14532d]">
             {heading}
           </h1>
