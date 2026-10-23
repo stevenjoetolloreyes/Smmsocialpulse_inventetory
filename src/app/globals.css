@@ -164,6 +164,25 @@ body {
   }
 }
 
+/* Subscription: sliding billing-toggle pill + price change animation */
+.ims-toggle-pill {
+  transition: transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes ims-price-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ims-price-in {
+  animation: ims-price-in 240ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ims-drawer,
   .ims-backdrop,
@@ -176,7 +195,9 @@ body {
   .ims-splash-bar,
   .ims-welcome,
   .ims-view-in,
-  .ims-card {
+  .ims-card,
+  .ims-toggle-pill,
+  .ims-price-in {
     transition: none !important;
     animation: none !important;
   }
