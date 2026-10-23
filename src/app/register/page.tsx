@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { getAuthBranding, registerAction } from "@/server/actions";
+import { registerAction } from "@/server/actions";
 import { unwrapActionResult } from "@/lib/actionResult";
 import { Icon } from "@/components/ui";
 import {
@@ -28,33 +28,24 @@ export default function RegisterPage() {
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
+  const [socialNotice, setSocialNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ emailSent: boolean; verifyUrl: string | null } | null>(null);
   const capsOn = useCapsLock();
 
-  const [branding, setBranding] = useState<{
-    googleEnabled: boolean;
-    facebookEnabled: boolean;
-  } | null>(null);
-
+  // Notices arriving back from the social sign-in flow.
   useEffect(() => {
-    let cancelled = false;
-    getAuthBranding()
-      .then((raw) => {
-        const b = unwrapActionResult(raw);
-        if (!cancelled) {
-          setBranding({
-            googleEnabled: b.googleEnabled,
-            facebookEnabled: b.facebookEnabled,
-          });
-        }
-      })
-      .catch(() => {
-        /* keep defaults */
-      });
-    return () => {
-      cancelled = true;
-    };
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("social") === "nouser") {
+      setSocialNotice(
+        "No store account uses that email yet. Create your store account first, then you can sign in with Google/Facebook using the same email.",
+      );
+    } else if (q.get("social") === "unconfigured") {
+      const label = q.get("provider") === "facebook" ? "Facebook" : "Google";
+      setSocialNotice(
+        `${label} sign-in is not set up yet. The platform owner needs to add the provider keys in Admin → Social Login.`,
+      );
+    }
   }, []);
 
   const submit = async (e: FormEvent) => {
@@ -120,7 +111,17 @@ export default function RegisterPage() {
         </div>
       ) : (
         <>
-          <form onSubmit={submit} autoComplete="off">
+          <div className="-mt-2">
+            <SocialButtons divider="or register with email" from="register" />
+          </div>
+
+          {socialNotice && (
+            <p className="mb-4 mt-4 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800 ring-1 ring-amber-200">
+              {socialNotice}
+            </p>
+          )}
+
+          <form onSubmit={submit} autoComplete="off" className="mt-5">
             <label className={authLabelCls} htmlFor="reg-store">
               Store Name
             </label>
@@ -219,11 +220,6 @@ export default function RegisterPage() {
               )}
             </button>
           </form>
-
-          <SocialButtons
-            google={Boolean(branding?.googleEnabled)}
-            facebook={Boolean(branding?.facebookEnabled)}
-          />
 
           <p className="mt-5 text-center text-sm text-stone-500">
             Already have an account?{" "}

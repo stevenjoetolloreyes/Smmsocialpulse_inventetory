@@ -444,8 +444,10 @@ export function AuthError({ message }: { message: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Social sign-in buttons (rendered ONLY when the owner has         */
-/*  configured the matching provider credentials)                     */
+/*  Social sign-in buttons — always visible on the client web. They  */
+/*  start the real OAuth flow; when the platform operator has not    */
+/*  configured a provider yet, the start route sends the visitor     */
+/*  back with an explanatory notice instead of a dead end.           */
 /* ------------------------------------------------------------------ */
 
 export function GoogleMark() {
@@ -483,33 +485,36 @@ export function FacebookMark() {
 }
 
 export function SocialButtons({
-  google,
-  facebook,
+  divider = "or continue with",
+  from,
 }: {
-  google: boolean;
-  facebook: boolean;
-}) {
-  if (!google && !facebook) return null;
+  /** Divider text shown above the buttons. */
+  divider?: string;
+  /** "register" when rendered on the register page, so an
+   *  unconfigured provider returns the visitor to that page. */
+  from?: "register";
+} = {}) {
   const btnCls =
     "flex w-full items-center justify-center gap-2.5 rounded-full border border-stone-300 bg-white py-2.5 text-sm font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50";
+  const suffix = from === "register" ? "?from=register" : "";
   return (
     <div className="mt-5">
       <div className="flex items-center gap-3 text-xs text-stone-400">
         <span className="h-px flex-1 bg-stone-200" />
-        or continue with
+        {divider}
         <span className="h-px flex-1 bg-stone-200" />
       </div>
       <div className="mt-3 space-y-2.5">
-        {google && (
-          <Link href="/auth/social/google" className={btnCls}>
-            <GoogleMark /> Continue with Google
-          </Link>
-        )}
-        {facebook && (
-          <Link href="/auth/social/facebook" className={btnCls}>
-            <FacebookMark /> Continue with Facebook
-          </Link>
-        )}
+        {/* Plain anchors, not <Link>: the start route answers with a
+            redirect (back here with a notice when unconfigured, or off
+            to the provider when configured), and a full navigation makes
+            sure the returned page mounts fresh and shows its notice. */}
+        <a href={`/auth/social/google/start${suffix}`} className={btnCls}>
+          <GoogleMark /> Continue with Google
+        </a>
+        <a href={`/auth/social/facebook/start${suffix}`} className={btnCls}>
+          <FacebookMark /> Continue with Facebook
+        </a>
       </div>
     </div>
   );

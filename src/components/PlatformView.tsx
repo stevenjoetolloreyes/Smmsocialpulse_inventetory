@@ -1,22 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   extendStorePlanAction,
   fetchPlatformData,
+  fetchSocialConfig,
   logoutAction,
+  platformSaveSocialConfig,
   platformSetPlan,
   platformSetStoreStatus,
 } from "@/server/actions";
 import { unwrapActionResult } from "@/lib/actionResult";
-import type { PlatformDataDTO } from "@/lib/types";
+import type { PlatformDataDTO, SocialConfigDTO } from "@/lib/types";
 import { fmtDate, fmtDateTime, peso } from "@/lib/format";
 import { Badge, Card, EmptyState, Icon, Modal, SectionTitle, btnGhost, btnPrimary, inputCls, labelCls } from "./ui";
 
-const PLAN_META: Record<string, { label: string; price: number }> = {
-  free: { label: "Free", price: 0 },
-  pro: { label: "Pro", price: 499 },
-  business: { label: "Business", price: 1999 },
+const PLAN_META: Record<string, { label: string; price: number; priceYearly: number }> = {
+  free: { label: "Free", price: 0, priceYearly: 0 },
+  pro: { label: "Pro", price: 499, priceYearly: 4990 },
+  business: { label: "Business", price: 1999, priceYearly: 19990 },
 };
 
 const FEEDBACK_LABEL: Record<string, string> = {
@@ -40,6 +42,30 @@ export function PlatformView({
   const [data, setData] = useState(initialData);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
+  const [social, setSocial] = useState<SocialConfigDTO | null>(null);
+  const [socialForm, setSocialForm] = useState({
+    googleClientId: "",
+    googleClientSecret: "",
+    facebookAppId: "",
+    facebookAppSecret: "",
+  });
+
+  const loadSocial = async () => {
+    const cfg = unwrapActionResult(await fetchSocialConfig());
+    setSocial(cfg);
+    setSocialForm((f) => ({
+      ...f,
+      googleClientId: cfg.google.clientId,
+      facebookAppId: cfg.facebook.appId,
+    }));
+  };
+
+  useEffect(() => {
+    loadSocial().catch(() => {
+      /* the section shows its load error state */
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [planEdit, setPlanEdit] = useState<{
     storeId: number;
     storeName: string;
@@ -48,6 +74,8 @@ export function PlatformView({
     /** The store's saved expiry (yyyy-mm-dd, "" when none) — the base
      *  the quick-extend chips count from. */
     currentExpiresAt: string;
+    /** Billing term: choosing one computes the expiry (+1 / +12 months). */
+    term: "monthly" | "yearly";
   } | null>(null);
 
   const refresh = async () => setData(unwrapActionResult(await fetchPlatformData()));
@@ -78,21 +106,23 @@ export function PlatformView({
    * editable afterwards; nothing is saved until "Save plan" is clicked.
    */
   const applyExtend = (months: number) => {
-    if (!planEdit) return;
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    let base = today;
-    if (planEdit.currentExpiresAt) {
-      const cur = new Date(`${planEdit.currentExpiresAt}T00:00:00`);
-      if (!Number.isNaN(cur.getTime()) && cur.getTime() > today.getTime()) {
-        base = cur;
+    setPlanEdit((prev) => {
+      if (!prev) return prev;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      let base = today;
+      if (prev.currentExpiresAt) {
+        const cur = new Date(`${prev.currentExpiresAt}T00:00:00`);
+        if (!Number.isNaN(cur.getTime()) && cur.getTime() > today.getTime()) {
+          base = cur;
+        }
       }
-    }
-    const next = new Date(base.getFullYear(), base.getMonth() + months, base.getDate());
-    const iso = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(
-      next.getDate(),
-    ).padStart(2, "0")}`;
-    setPlanEdit({ ...planEdit, expiresAt: iso });
+      const next = new Date(base.getFullYear(), base.getMonth() + months, base.getDate());
+      const iso = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(
+        next.getDate(),
+      ).padStart(2, "0")}`;
+      return { ...prev, expiresAt: iso };
+    });
   };
 
   const statCards = [
@@ -206,6 +236,7 @@ export function PlatformView({
                                 currentExpiresAt: s.planExpiresAt
                                   ? s.planExpiresAt.slice(0, 10)
                                   : "",
+                                term: "monthly",
                               })
                             }
                           >
@@ -268,6 +299,119 @@ export function PlatformView({
         </Card>
 
         <Card className="p-5">
+          <SectionTitle icon="key" title="Social Login" />
+          <p className="mb-4 text-sm leading-relaxed text-stone-500">
+            Connect Google and Facebook sign-in for store owners. Create an OAuth app in
+            each provider&apos;s dashboard, paste its credentials here, and register the
+            redirect URI shown for that provider. Changes take effect immediately — no
+            redeploy needed. Secrets are never shown back after saving: leave a secret
+            field empty to keep the one already stored.
+          </p>
+          {social === null ? (
+            <p className="text-sm text-stone-400">Loading social login settings…</p>
+          ) : (
+            <div className="space-y-6">
+              {(
+                [
+                  {
+                    key: "google" as const,
+                    label: "Google",
+                    idLabel: "Client ID",
+                    secretLabel: "Client Secret",
+                    idValue: socialForm.googleClientId,
+                    secretValue: socialForm.googleClientSecret,
+                    hasSecret: social.google.hasSecret,
+                    configured: social.google.configured,
+                    redirectUri: social.googleRedirectUri,
+                    setId: (v: string) =>
+                      setSocialForm((f) => ({ ...f, googleClientId: v })),
+                    setSecret: (v: string) =>
+                      setSocialForm((f) => ({ ...f, googleClientSecret: v })),
+                  },
+                  {
+                    key: "facebook" as const,
+                    label: "Facebook",
+                    idLabel: "App ID",
+                    secretLabel: "App Secret",
+                    idValue: socialForm.facebookAppId,
+                    secretValue: socialForm.facebookAppSecret,
+                    hasSecret: social.facebook.hasSecret,
+                    configured: social.facebook.configured,
+                    redirectUri: social.facebookRedirectUri,
+                    setId: (v: string) =>
+                      setSocialForm((f) => ({ ...f, facebookAppId: v })),
+                    setSecret: (v: string) =>
+                      setSocialForm((f) => ({ ...f, facebookAppSecret: v })),
+                  },
+                ]
+              ).map((p) => (
+                <div
+                  key={p.key}
+                  className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4"
+                >
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="text-sm font-bold text-stone-800">{p.label}</span>
+                    <Badge tone={p.configured ? "green" : "stone"}>
+                      {p.configured ? "Configured" : "Not set"}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <label className={labelCls}>{p.idLabel}</label>
+                      <input
+                        className={inputCls}
+                        value={p.idValue}
+                        onChange={(e) => p.setId(e.target.value)}
+                        placeholder={`Paste the ${p.label} ${p.idLabel.toLowerCase()}`}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>{p.secretLabel}</label>
+                      <input
+                        className={inputCls}
+                        type="password"
+                        value={p.secretValue}
+                        onChange={(e) => p.setSecret(e.target.value)}
+                        placeholder={p.hasSecret ? "•••••• saved" : "Not saved yet"}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-stone-400">
+                    Redirect URI to register in the {p.label} dashboard:{" "}
+                    <code className="break-all rounded bg-white px-1.5 py-0.5 font-mono text-[11px] text-stone-600 ring-1 ring-stone-200">
+                      {p.redirectUri}
+                    </code>
+                  </p>
+                </div>
+              ))}
+              <div className="flex justify-end">
+                <button
+                  className={btnPrimary}
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      unwrapActionResult(
+                        await platformSaveSocialConfig({ ...socialForm }),
+                      );
+                      await loadSocial();
+                      setSocialForm((f) => ({
+                        ...f,
+                        googleClientSecret: "",
+                        facebookAppSecret: "",
+                      }));
+                    }, "Social login settings saved — they are live now.")
+                  }
+                >
+                  <Icon name="floppy-disk" /> Save social login
+                </button>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-5">
           <SectionTitle icon="inbox" title={`Feedback inbox (${data.feedback.length})`} />
           {data.feedback.length === 0 ? (
             <EmptyState
@@ -323,6 +467,56 @@ export function PlatformView({
               </select>
             </div>
             <div>
+              <label className={labelCls}>Term</label>
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    {
+                      key: "monthly" as const,
+                      label: "Monthly",
+                      detail:
+                        PLAN_META[planEdit.planId]?.price === 0
+                          ? "₱0"
+                          : `${peso(PLAN_META[planEdit.planId]?.price ?? 0)}/month · expiry +1 month`,
+                    },
+                    {
+                      key: "yearly" as const,
+                      label: "Yearly",
+                      detail:
+                        PLAN_META[planEdit.planId]?.priceYearly === 0
+                          ? "₱0"
+                          : `${peso(PLAN_META[planEdit.planId]?.priceYearly ?? 0)}/year · expiry +12 months`,
+                    },
+                  ]
+                ).map((o) => (
+                  <button
+                    key={o.key}
+                    type="button"
+                    disabled={planEdit.planId === "free"}
+                    onClick={() => {
+                      setPlanEdit({ ...planEdit, term: o.key });
+                      applyExtend(o.key === "yearly" ? 12 : 1);
+                    }}
+                    className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      planEdit.term === o.key
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600"
+                        : "border-stone-300 bg-white text-stone-600 hover:bg-stone-50"
+                    }`}
+                  >
+                    {o.label}
+                    <span className="block text-[11px] font-medium text-stone-400">
+                      {o.detail}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-stone-400">
+                Picking a term fills the expiry below (+1 or +12 months from the current
+                expiry, or from today when it has passed). Yearly is the monthly price × 10
+                — two months free for the store.
+              </p>
+            </div>
+            <div>
               <label className={labelCls}>Plan expiry (optional)</label>
               <input
                 className={inputCls}
@@ -375,6 +569,7 @@ export function PlatformView({
                         expiresAt: planEdit.expiresAt
                           ? new Date(`${planEdit.expiresAt}T23:59:59`).toISOString()
                           : null,
+                        term: planEdit.planId === "free" ? null : planEdit.term,
                       }),
                     );
                     setPlanEdit(null);

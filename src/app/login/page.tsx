@@ -43,12 +43,13 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [socialNotice, setSocialNotice] = useState("");
   const [resend, setResend] = useState<{ emailSent: boolean; verifyUrl: string | null } | null>(null);
   const [resending, setResending] = useState(false);
   const [busy, setBusy] = useState(false);
   const capsOn = useCapsLock();
 
-  // One-time notices arriving from the verify / reset flows.
+  // One-time notices arriving from the verify / reset / social flows.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("verified") === "1") {
@@ -57,6 +58,17 @@ export default function LoginPage() {
       setNotice("Password updated. Sign in with your new password.");
     } else if (q.get("verify_error") === "1") {
       setError("That verification link is invalid or has expired. Use the resend option below after a sign-in attempt.");
+    } else if (q.get("social") === "unconfigured") {
+      const label = q.get("provider") === "facebook" ? "Facebook" : "Google";
+      setSocialNotice(
+        `${label} sign-in is not set up yet. The platform owner needs to add the provider keys in Admin → Social Login.`,
+      );
+    } else if (q.get("social") === "error") {
+      setError("Social sign-in failed or was cancelled. Please try again or use your password.");
+    } else if (q.get("social") === "noemail") {
+      setError("That Facebook account has no email address to match.");
+    } else if (q.get("social") === "suspended") {
+      setError("This store has been suspended. Please contact the platform owner for help.");
     }
   }, []);
 
@@ -179,6 +191,12 @@ export default function LoginPage() {
     </p>
   );
 
+  const socialNoticeBlock = socialNotice && (
+    <p className="mb-4 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800 ring-1 ring-amber-200">
+      {socialNotice}
+    </p>
+  );
+
   const heading =
     branding && branding.storeName && branding.storeName !== "My Store"
       ? branding.storeName
@@ -216,6 +234,7 @@ export default function LoginPage() {
       </div>
 
       {noticeBlock}
+      {socialNoticeBlock}
 
       {tab === "owner" ? (
         <form onSubmit={submitOwner} autoComplete="off">
@@ -266,10 +285,7 @@ export default function LoginPage() {
             )}
           </button>
 
-          <SocialButtons
-            google={Boolean(branding?.googleEnabled)}
-            facebook={Boolean(branding?.facebookEnabled)}
-          />
+          <SocialButtons />
 
           <div className="mt-4 text-right">
             <Link href="/forgot-password" className="text-sm font-semibold text-[#15803d] hover:underline">
@@ -349,10 +365,7 @@ export default function LoginPage() {
             )}
           </button>
 
-          <SocialButtons
-            google={Boolean(branding?.googleEnabled)}
-            facebook={Boolean(branding?.facebookEnabled)}
-          />
+          <SocialButtons />
         </form>
       )}
 

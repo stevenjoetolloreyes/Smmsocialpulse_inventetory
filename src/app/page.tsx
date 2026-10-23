@@ -50,7 +50,7 @@ export default async function HomePage() {
   // Owners finish the store-setup wizard before using the app.
   if (store.setupCompleted !== 1) redirect("/setup");
 
-  const data = await getStoreData(db, session.storeId);
+  const data = await getStoreData(db, session.storeId, session.id);
   return (
     <StoreProvider user={session} initialData={data}>
       <AppShell />

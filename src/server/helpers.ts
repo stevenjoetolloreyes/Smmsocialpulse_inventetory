@@ -83,10 +83,21 @@ export function toPlanDTO(p: PlanRow): PlanDTO {
     id: p.id,
     name: p.name,
     priceMonthly: p.priceMonthly,
+    priceYearly: p.priceYearly,
     maxUsers: p.maxUsers,
     imageUpload: p.productImageUpload === 1,
     reportExport: p.reportExport === 1,
   };
+}
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "October 28, 2026"-style long date for server-generated messages. */
+export function fmtDateLong(d: Date): string {
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 /**
@@ -403,9 +414,9 @@ export async function consumeEmailToken(db: DB, token: string): Promise<void> {
 /* ---------------- seed & settings ---------------- */
 
 const DEFAULT_PLANS: PlanRow[] = [
-  { id: "free", name: "Free", priceMonthly: 0, maxUsers: 2, productImageUpload: 0, reportExport: 0 },
-  { id: "pro", name: "Pro", priceMonthly: 499, maxUsers: 10, productImageUpload: 1, reportExport: 1 },
-  { id: "business", name: "Business", priceMonthly: 1999, maxUsers: 0, productImageUpload: 1, reportExport: 1 },
+  { id: "free", name: "Free", priceMonthly: 0, priceYearly: 0, maxUsers: 2, productImageUpload: 0, reportExport: 0 },
+  { id: "pro", name: "Pro", priceMonthly: 499, priceYearly: 4990, maxUsers: 10, productImageUpload: 1, reportExport: 1 },
+  { id: "business", name: "Business", priceMonthly: 1999, priceYearly: 19990, maxUsers: 0, productImageUpload: 1, reportExport: 1 },
 ];
 
 export async function ensureSeed(db: DB): Promise<void> {

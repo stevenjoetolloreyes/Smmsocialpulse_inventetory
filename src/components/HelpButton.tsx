@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "./store";
 import { Icon, Modal, btnGhost, btnPrimary, labelCls } from "./ui";
 import { submitFeedbackAction } from "@/server/actions";
@@ -20,6 +20,13 @@ export function HelpButton() {
   const { run, showToast } = useStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [formType, setFormType] = useState<string | null>(null);
+
+  // The sidebar/drawer "Help & Support" rows open this same help flow.
+  useEffect(() => {
+    const open = () => setMenuOpen(true);
+    window.addEventListener("ims:open-help", open);
+    return () => window.removeEventListener("ims:open-help", open);
+  }, []);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -40,7 +47,7 @@ export function HelpButton() {
 
   return (
     <>
-      <div className="no-print fixed bottom-20 right-4 z-50 lg:bottom-6 lg:right-6">
+      <div className="no-print fixed bottom-4 right-4 z-50 lg:bottom-6 lg:right-6">
         {menuOpen && (
           <div className="mb-2.5 w-56 overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
             <p className="border-b border-stone-100 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-stone-400">

@@ -193,9 +193,23 @@ export type PlanDTO = {
   id: string; // free | pro | business
   name: string;
   priceMonthly: number;
+  /** Yearly term price (monthly × 10 — two months free). */
+  priceYearly: number;
   maxUsers: number; // 0 = unlimited
   imageUpload: boolean;
   reportExport: boolean;
+};
+
+export type NotificationCategory = "inventory" | "sales" | "billing" | "system";
+
+export type NotificationDTO = {
+  id: number;
+  category: NotificationCategory;
+  title: string;
+  body: string;
+  /** True when the CURRENT user has read this notification. */
+  read: boolean;
+  createdAt: string;
 };
 
 export type StoreMetaDTO = {
@@ -237,6 +251,10 @@ export type StoreData = {
   store: StoreMetaDTO;
   plan: PlanDTO;
   plans: PlanDTO[];
+  /** Latest notifications for the store, read state for the signed-in user. */
+  notifications: NotificationDTO[];
+  /** Store notifications with no read row for the signed-in user. */
+  unreadNotifications: number;
 };
 
 export type PlatformStoreDTO = {
@@ -269,6 +287,18 @@ export type PlatformDataDTO = {
   perPlan: { planId: string; count: number }[];
   stores: PlatformStoreDTO[];
   feedback: FeedbackDTO[];
+};
+
+/**
+ * Social sign-in configuration as the platform console may see it:
+ * client/app IDs and configured flags only — stored secrets are NEVER
+ * sent to the client, only whether one exists.
+ */
+export type SocialConfigDTO = {
+  google: { clientId: string; hasSecret: boolean; configured: boolean };
+  facebook: { appId: string; hasSecret: boolean; configured: boolean };
+  googleRedirectUri: string;
+  facebookRedirectUri: string;
 };
 
 export type UnitInput = {

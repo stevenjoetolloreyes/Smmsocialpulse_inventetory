@@ -14,14 +14,27 @@ import {
   type SessionUser,
 } from "@/lib/auth";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/mail";
+import {
+  SOCIAL_SETTING_KEYS,
+  getSocialConfig,
+  setPlatformSetting,
+  socialRedirectUri,
+} from "@/lib/social";
 import { csvEscape } from "@/lib/format";
 import type {
   ImportRow,
   PlatformDataDTO,
   SettingsDTO,
+  SocialConfigDTO,
   UnitInput,
 } from "@/lib/types";
 import { getStoreData } from "./data";
+import {
+  createNotification,
+  markAllNotificationsRead,
+  markNotificationRead,
+  notifyStockLevels,
+} from "./notifications";
 import type { ActionErrorResult } from "@/lib/actionResult";
 import {
   addHistory,
@@ -35,6 +48,7 @@ import {
   deductFIFO,
   ensureStoreCode,
   fifoOrder,
+  fmtDateLong,
   getStoreBatch,
   getStoreItem,
   isSellable,
@@ -484,9 +498,9 @@ async function logoutActionImpl(): Promise<{ ok: true }> {
 /* ---------------- data ---------------- */
 
 async function fetchStoreDataImpl() {
-  const { storeId } = await requireStoreSession();
+  const { user, storeId } = await requireStoreSession();
   const db = await getDb();
-  return getStoreData(db, storeId);
+  return getStoreData(db, storeId, user.id);
 }
 
 async function findByCodeImpl(code: string) {
@@ -988,6 +1002,11 @@ async function recordMovementImpl(input: {
     actor,
     reference: item.code,
   });
+  try {
+    await notifyStockLevels(db, storeId, [item.id]);
+  } catch {
+    /* notifications are failure-isolated */
+  }
   return { ok: true as const, balanceAfter };
 }
 
@@ -1035,6 +1054,11 @@ async function adjustBatchImpl(input: {
     actor: user.name,
     reference: batch.batchNo,
   });
+  try {
+    await notifyStockLevels(db, storeId, [item.id]);
+  } catch {
+    /* notifications are failure-isolated */
+  }
   return { ok: true as const };
 }
 
@@ -1068,6 +1092,11 @@ async function setBatchStatusImpl(
     actor: user.name,
     reference: batch.batchNo,
   });
+  try {
+    await notifyStockLevels(db, storeId, [item.id]);
+  } catch {
+    /* notifications are failure-isolated */
+  }
   return { ok: true as const };
 }
 
@@ -1193,6 +1222,11 @@ async function addReceivingImpl(input: {
     actor: user.name,
     reference: batch.batchNo,
   });
+  try {
+    await notifyStockLevels(db, storeId, [item.id]);
+  } catch {
+    /* notifications are failure-isolated */
+  }
   return { ok: true as const };
 }
 
@@ -1203,11 +1237,13 @@ async function bulkRestockImpl(input: {
   const { user, storeId } = await requireStoreSession();
   const db = await getDb();
   if (input.entries.length === 0) throw new Error("Select at least one product to restock.");
+  const touchedItemIds: number[] = [];
   for (const e of input.entries) {
     const qty = Math.trunc(e.qty);
     if (qty <= 0) continue;
     const item = await getStoreItem(db, storeId, e.itemId);
     if (!item || item.deletedAt) continue;
+    touchedItemIds.push(item.id);
     const batch = await createBatch(db, {
       item,
       qty,
@@ -1234,6 +1270,11 @@ async function bulkRestockImpl(input: {
       actor: user.name,
       reference: batch.batchNo,
     });
+  }
+  try {
+    await notifyStockLevels(db, storeId, touchedItemIds);
+  } catch {
+    /* notifications are failure-isolated */
   }
   return { ok: true as const };
 }
@@ -1470,6 +1511,23 @@ async function completeSaleImpl(input: {
     actor,
     reference: orNumber,
   });
+
+  // Notifications (failure-isolated — they can never break a sale).
+  try {
+    const itemCount = prepared.reduce((s, p) => s + p.qtyUnits, 0);
+    await createNotification(db, storeId, {
+      category: "sales",
+      title: `Sale ${orNumber} completed`,
+      body: `Total ₱${total.toFixed(2)} · ${itemCount} item${itemCount === 1 ? "" : "s"} · paid via ${input.paymentMethod}.`,
+    });
+    await notifyStockLevels(
+      db,
+      storeId,
+      prepared.map((p) => p.item.id),
+    );
+  } catch {
+    /* ignored */
+  }
   return { ok: true as const, saleId: sale.id };
 }
 
@@ -1559,6 +1617,23 @@ async function recordReturnImpl(input: {
     });
   }
   await db.update(t.sales).set({ status: "Partially Refunded" }).where(eq(t.sales.id, sale.id));
+
+  // Notifications (failure-isolated).
+  try {
+    const returnedUnits = preps.reduce((s, p) => s + p.qtyBase, 0);
+    await createNotification(db, storeId, {
+      category: "sales",
+      title: `Return processed for ${sale.orNumber}`,
+      body: `${returnedUnits} unit${returnedUnits === 1 ? "" : "s"} returned to stock from sale ${sale.orNumber}.`,
+    });
+    await notifyStockLevels(
+      db,
+      storeId,
+      preps.map((p) => p.si.itemId),
+    );
+  } catch {
+    /* ignored */
+  }
   return { ok: true as const };
 }
 
@@ -1832,6 +1907,17 @@ async function saveStaffImpl(input: {
       actor: user.name,
       reference: username || name,
     });
+    if (current.active !== 1 && input.active) {
+      try {
+        await createNotification(db, storeId, {
+          category: "system",
+          title: `User ${username || name} was activated`,
+          body: `${name} (${input.role}) can now sign in to this store.`,
+        });
+      } catch {
+        /* notifications are failure-isolated */
+      }
+    }
   } else {
     if (!username) throw new Error("Username is required for a new user.");
     if (!input.password) throw new Error("Password is required for a new user.");
@@ -1862,6 +1948,15 @@ async function saveStaffImpl(input: {
       actor: user.name,
       reference: username,
     });
+    try {
+      await createNotification(db, storeId, {
+        category: "system",
+        title: `User ${username} was added`,
+        body: `${name} was added as ${input.role} in User Management.`,
+      });
+    } catch {
+      /* notifications are failure-isolated */
+    }
   }
   return { ok: true as const };
 }
@@ -1971,6 +2066,9 @@ async function platformSetPlanImpl(input: {
   storeId: number;
   planId: string;
   expiresAt: string | null; // ISO date or null = no expiry
+  /** Billing term chosen in the console (monthly | yearly) — recorded in
+   *  the store's subscription history; the expiry itself is authoritative. */
+  term?: "monthly" | "yearly" | null;
 }): Promise<{ ok: true }> {
   await requirePlatformAdmin();
   const db = await getDb();
@@ -1989,6 +2087,34 @@ async function platformSetPlanImpl(input: {
     .update(t.stores)
     .set({ planId: input.planId, planExpiresAt: expires })
     .where(eq(t.stores.id, input.storeId));
+
+  // The store hears about it: a billing notification + a subscription
+  // history entry (shown on the store's Subscription page). Isolated so
+  // a notification/history failure can never fail the plan change itself.
+  try {
+    const planName = plans.find((p) => p.id === input.planId)?.name ?? input.planId;
+    const termLabel =
+      input.term === "yearly" ? "Yearly term" : input.term === "monthly" ? "Monthly term" : "";
+    await addHistory(db, input.storeId, {
+      action: "Plan updated",
+      entityType: "Plan",
+      entityId: input.storeId,
+      description: `Plan updated to ${planName}${termLabel ? ` (${termLabel})` : ""}${
+        expires ? ` — expires ${fmtDateLong(expires)}` : " — no expiry"
+      }`,
+      actor: "Platform admin",
+      reference: input.planId,
+    });
+    await createNotification(db, input.storeId, {
+      category: "billing",
+      title: `Plan updated to ${planName} by the platform admin`,
+      body: expires
+        ? `This store now runs on the ${planName} plan until ${fmtDateLong(expires)}.`
+        : `This store now runs on the ${planName} plan.`,
+    });
+  } catch {
+    /* isolated */
+  }
   return { ok: true as const };
 }
 
@@ -2023,6 +2149,27 @@ async function extendStorePlanActionImpl(input: {
     .update(t.stores)
     .set({ planExpiresAt: next })
     .where(eq(t.stores.id, input.storeId));
+
+  // Billing notification + subscription history for the store (isolated).
+  try {
+    const plans = await loadPlans(db);
+    const planName = plans.find((p) => p.id === store.planId)?.name ?? store.planId;
+    await addHistory(db, input.storeId, {
+      action: "Plan extended",
+      entityType: "Plan",
+      entityId: input.storeId,
+      description: `Plan extended — new expiry ${fmtDateLong(next)}`,
+      actor: "Platform admin",
+      reference: store.planId,
+    });
+    await createNotification(db, input.storeId, {
+      category: "billing",
+      title: `Plan extended — new expiry ${fmtDateLong(next)}`,
+      body: `The ${planName} plan now runs until ${fmtDateLong(next)}.`,
+    });
+  } catch {
+    /* isolated */
+  }
   return { ok: true as const, planExpiresAt: next.toISOString() };
 }
 
@@ -2041,6 +2188,114 @@ async function platformSetStoreStatusImpl(input: {
     .update(t.stores)
     .set({ status: input.status })
     .where(eq(t.stores.id, input.storeId));
+
+  // System notification for the store (isolated). A suspended store's
+  // users see it waiting for them once the store is reactivated.
+  try {
+    await createNotification(db, input.storeId, {
+      category: "system",
+      title:
+        input.status === "suspended"
+          ? "Your store was suspended by the platform admin"
+          : "Your store was activated by the platform admin",
+      body:
+        input.status === "suspended"
+          ? "Sign-in is paused for everyone in this store until the platform owner reactivates it. Contact the platform owner if you need help."
+          : "Your store is active again — your team can sign in and work as usual.",
+    });
+  } catch {
+    /* isolated */
+  }
+  return { ok: true as const };
+}
+
+/**
+ * Social sign-in configuration for the platform console. Returns the
+ * provider IDs and configured flags only — a stored secret is never
+ * sent back to the browser, just whether one exists.
+ */
+async function fetchSocialConfigImpl(): Promise<SocialConfigDTO> {
+  await requirePlatformAdmin();
+  const db = await getDb();
+  const cfg = await getSocialConfig(db);
+  return {
+    google: {
+      clientId: cfg.google.clientId,
+      hasSecret: Boolean(cfg.google.clientSecret),
+      configured: cfg.google.configured,
+    },
+    facebook: {
+      appId: cfg.facebook.clientId,
+      hasSecret: Boolean(cfg.facebook.clientSecret),
+      configured: cfg.facebook.configured,
+    },
+    googleRedirectUri: socialRedirectUri("google"),
+    facebookRedirectUri: socialRedirectUri("facebook"),
+  };
+}
+
+/**
+ * Saves the social sign-in credentials the operator pasted into the
+ * console (stored in platform_settings; effective immediately, no
+ * redeploy). Secret fields follow the usual convention: an EMPTY
+ * secret means "keep the one already stored", so the console can save
+ * the form without re-typing secrets it never displays.
+ */
+async function platformSaveSocialConfigImpl(input: {
+  googleClientId: string;
+  googleClientSecret: string;
+  facebookAppId: string;
+  facebookAppSecret: string;
+}): Promise<{ ok: true }> {
+  await requirePlatformAdmin();
+  const db = await getDb();
+  await setPlatformSetting(
+    db,
+    SOCIAL_SETTING_KEYS.googleClientId,
+    input.googleClientId.trim(),
+  );
+  if (input.googleClientSecret.trim() !== "") {
+    await setPlatformSetting(
+      db,
+      SOCIAL_SETTING_KEYS.googleClientSecret,
+      input.googleClientSecret.trim(),
+    );
+  }
+  await setPlatformSetting(
+    db,
+    SOCIAL_SETTING_KEYS.facebookAppId,
+    input.facebookAppId.trim(),
+  );
+  if (input.facebookAppSecret.trim() !== "") {
+    await setPlatformSetting(
+      db,
+      SOCIAL_SETTING_KEYS.facebookAppSecret,
+      input.facebookAppSecret.trim(),
+    );
+  }
+  return { ok: true as const };
+}
+
+/* ---------------- notifications (store bell) ----------------
+ * Creation is internal only (sales/stock/plan/user events + the snapshot
+ * sweep); the client can only mark its own user's notifications read. */
+
+async function markNotificationReadActionImpl(id: number): Promise<{ ok: true }> {
+  const { user, storeId } = await requireStoreSession();
+  const db = await getDb();
+  const [row] = await db
+    .select()
+    .from(t.notifications)
+    .where(eq(t.notifications.id, id));
+  if (!row || row.storeId !== storeId) throw new Error("Notification not found.");
+  await markNotificationRead(db, id, user.id);
+  return { ok: true as const };
+}
+
+async function markAllNotificationsReadActionImpl(): Promise<{ ok: true }> {
+  const { user, storeId } = await requireStoreSession();
+  const db = await getDb();
+  await markAllNotificationsRead(db, storeId, user.id);
   return { ok: true as const };
 }
 
@@ -2086,3 +2341,7 @@ export const fetchPlatformData = safeAction(fetchPlatformDataImpl);
 export const platformSetPlan = safeAction(platformSetPlanImpl);
 export const extendStorePlanAction = safeAction(extendStorePlanActionImpl);
 export const platformSetStoreStatus = safeAction(platformSetStoreStatusImpl);
+export const fetchSocialConfig = safeAction(fetchSocialConfigImpl);
+export const platformSaveSocialConfig = safeAction(platformSaveSocialConfigImpl);
+export const markNotificationReadAction = safeAction(markNotificationReadActionImpl);
+export const markAllNotificationsReadAction = safeAction(markAllNotificationsReadActionImpl);

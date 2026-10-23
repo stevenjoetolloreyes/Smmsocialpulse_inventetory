@@ -11,9 +11,22 @@ import {
   toPlanDTO,
   toStoreMeta,
 } from "./helpers";
+import { generateSnapshotNotifications, loadNotifications } from "./notifications";
 
 /** Loads everything one store's client UI needs in one snapshot. */
-export async function getStoreData(db: DB, storeId: number): Promise<StoreData> {
+export async function getStoreData(
+  db: DB,
+  storeId: number,
+  staffId: number,
+): Promise<StoreData> {
+  // Time-driven alerts (batch + plan expiries) are evaluated on load.
+  // Failure-isolated: a notification problem never breaks the snapshot.
+  try {
+    await generateSnapshotNotifications(db, storeId);
+  } catch {
+    /* ignored — see notifications.ts */
+  }
+
   const allProducts = await loadProducts(db, storeId);
   const products = allProducts.filter((p) => !p.deletedAt);
   const deletedProducts = allProducts.filter((p) => p.deletedAt);
@@ -222,6 +235,7 @@ export async function getStoreData(db: DB, storeId: number): Promise<StoreData> 
   if (!store) throw new Error("Store not found.");
   const plan = await loadEffectivePlan(db, store);
   const plans = (await loadPlans(db)).map(toPlanDTO);
+  const { notifications, unreadCount } = await loadNotifications(db, storeId, staffId);
 
   return {
     products,
@@ -239,5 +253,7 @@ export async function getStoreData(db: DB, storeId: number): Promise<StoreData> 
     store: toStoreMeta(store),
     plan,
     plans,
+    notifications,
+    unreadNotifications: unreadCount,
   };
 }

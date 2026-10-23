@@ -29,7 +29,8 @@ export type ViewKey =
   | "history"
   | "labels"
   | "settings"
-  | "subscription";
+  | "subscription"
+  | "notifications";
 
 export type PrintJob =
   | { kind: "receipt"; saleId: number }

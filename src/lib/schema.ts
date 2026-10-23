@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -39,6 +40,8 @@ export const plans = sqliteTable("plans", {
   id: text("id").primaryKey(), // free | pro | business
   name: text("name").notNull(),
   priceMonthly: real("price_monthly").notNull().default(0),
+  /** Yearly price (seeded as monthly × 10 — two months free, ≈17% saved). */
+  priceYearly: real("price_yearly").notNull().default(0),
   maxUsers: integer("max_users").notNull().default(2), // 0 = unlimited
   productImageUpload: integer("product_image_upload").notNull().default(0),
   reportExport: integer("report_export").notNull().default(0),
@@ -66,6 +69,54 @@ export const feedback = sqliteTable("feedback", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+/**
+ * Platform-wide key/value settings owned by the platform admin (never by
+ * a store). Currently holds the social sign-in provider credentials the
+ * operator pastes in /admin → Social Login: google_client_id,
+ * google_client_secret, facebook_app_id, facebook_app_secret.
+ */
+export const platformSettings = sqliteTable("platform_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull().default(""),
+});
+
+/**
+ * Store-scoped, in-app notifications (bell + Notifications view). Rows are
+ * created ONLY by real events — sales, stock changes, plan changes, user
+ * management, and the daily snapshot sweep for expiries — never seeded.
+ * `dedupe_key` guards repeat alerts (low/out-of-stock while still unread;
+ * expiry and plan alerts once per day).
+ */
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    storeId: integer("store_id").notNull(),
+    category: text("category").notNull(), // inventory | sales | billing | system
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
+    dedupeKey: text("dedupe_key"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [index("notifications_store_idx").on(t.storeId)],
+);
+
+/** Per-user read state: a notification is unread for a staff member while
+ *  no row exists here for (notification_id, staff_id). */
+export const notificationReads = sqliteTable(
+  "notification_reads",
+  {
+    notificationId: integer("notification_id").notNull(),
+    staffId: integer("staff_id").notNull(),
+    readAt: integer("read_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [primaryKey({ columns: [t.notificationId, t.staffId] })],
+);
 
 /* ---------------- tenant tables ---------------- */
 
