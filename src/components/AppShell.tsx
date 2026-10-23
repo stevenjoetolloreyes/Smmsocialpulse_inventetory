@@ -197,7 +197,9 @@ function NavList({
           className={`${itemBase} ${active ? itemActive : itemIdle}`}
           aria-current={active ? "page" : undefined}
         >
-          <Icon name={item.icon} className="w-5 text-center" />
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+            <Icon name={item.icon} />
+          </span>
           <span className="flex-1 text-left">{item.label}</span>
           {alert > 0 && (
             <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
@@ -225,7 +227,9 @@ function NavList({
               className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-bold text-white/90 transition hover:bg-white/10"
               aria-expanded={open}
             >
-              <Icon name={group.icon} className="w-5 text-center" />
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                <Icon name={group.icon} />
+              </span>
               <span className="flex-1 text-left">{group.name}</span>
               <Icon
                 name="chevron-down"
@@ -310,7 +314,9 @@ function NavBottom({
         }}
         className="ims-item flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium text-white/85 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-[0.98]"
       >
-        <Icon name="circle-question" className="w-5 text-center" />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+          <Icon name="circle-question" />
+        </span>
         <span className="flex-1 text-left">Help &amp; Support</span>
       </button>
       <div className="mt-1 flex items-center gap-3 px-3 py-2">
