@@ -15,7 +15,9 @@ export function Card({
   className?: string;
 }) {
   return (
-    <div className={`rounded-2xl border border-stone-200 bg-white shadow-sm ${className}`}>
+    <div
+      className={`rounded-[24px] bg-white shadow-[0_10px_36px_-16px_rgb(28_25_23/0.14)] ring-1 ring-stone-900/5 ${className}`}
+    >
       {children}
     </div>
   );
@@ -31,9 +33,9 @@ export function SectionTitle({
   right?: ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2">
-      <h2 className="flex items-center gap-2 text-base font-bold text-stone-800">
-        <span className="text-[var(--brand)]">
+    <div className="mb-4 flex items-center justify-between gap-2">
+      <h2 className="flex items-center gap-2.5 text-lg font-extrabold tracking-tight text-stone-800">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-100 text-base text-[var(--brand)]">
           <Icon name={icon} />
         </span>
         {title}
@@ -55,12 +57,12 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-stone-100 text-2xl text-stone-400">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-stone-200 px-4 py-10 text-center">
+      <span className="text-3xl text-stone-300">
         <Icon name={icon} />
       </span>
-      <p className="font-semibold text-stone-700">{title}</p>
-      {hint && <p className="max-w-sm text-sm text-stone-500">{hint}</p>}
+      <p className="font-bold text-stone-600">{title}</p>
+      {hint && <p className="max-w-sm text-sm text-stone-400">{hint}</p>}
       {action}
     </div>
   );
@@ -74,12 +76,12 @@ export function Badge({
   children: ReactNode;
 }) {
   const tones: Record<string, string> = {
-    green: "bg-green-100 text-green-800",
-    amber: "bg-amber-100 text-amber-800",
-    red: "bg-red-100 text-red-700",
-    stone: "bg-stone-200 text-stone-700",
-    blue: "bg-sky-100 text-sky-800",
-    violet: "bg-violet-100 text-violet-800",
+    green: "bg-emerald-50 text-emerald-600",
+    amber: "bg-amber-50 text-amber-600",
+    red: "bg-red-50 text-red-500",
+    stone: "bg-stone-100 text-stone-500",
+    blue: "bg-sky-50 text-sky-600",
+    violet: "bg-violet-50 text-violet-600",
   };
   return (
     <span
@@ -107,9 +109,9 @@ export function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="no-print fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+    <div className="no-print fixed inset-0 z-50 flex items-end justify-center bg-stone-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
       <div
-        className={`nice-scroll max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-xl sm:rounded-3xl ${
+        className={`nice-scroll max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-white shadow-2xl ring-1 ring-stone-900/10 sm:rounded-[28px] ${
           wide ? "sm:max-w-3xl" : "sm:max-w-lg"
         }`}
       >
@@ -137,11 +139,11 @@ export function Modal({
 }
 
 export const inputCls =
-  "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/25 placeholder:text-stone-400";
+  "w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/25 placeholder:text-stone-400";
 export const labelCls = "mb-1 block text-xs font-semibold uppercase tracking-wide text-stone-500";
 export const btnPrimary =
-  "inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
 export const btnGhost =
-  "inline-flex items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
 export const btnDanger =
-  "inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";

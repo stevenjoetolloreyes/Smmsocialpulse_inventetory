@@ -199,7 +199,7 @@ export function NotificationBell() {
             tabIndex={-1}
             onClick={() => setOpenPanel(false)}
           />
-          <div className="absolute right-0 z-50 mt-2 flex max-h-[min(70vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
+          <div className="fixed inset-x-3 top-[76px] z-50 flex max-h-[min(70vh,560px)] flex-col overflow-hidden rounded-[24px] bg-white shadow-2xl ring-1 ring-black/10 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[min(92vw,380px)]">
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
               <p className="font-bold text-stone-800">Notifications</p>
               <button
