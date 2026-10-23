@@ -284,14 +284,14 @@ export function SubscriptionView() {
                 ) : (
                   <>
                     <p className="text-4xl font-extrabold tracking-tight text-stone-800">
-                      {peso(p.priceYearly / 12)}
+                      {peso(p.priceYearly)}
                       <span className="ml-1.5 text-sm font-semibold text-stone-400">
-                        / month
+                        / year
                       </span>
                     </p>
                     <p className="mt-1 text-xs font-semibold text-emerald-600">
-                      Billed {peso(p.priceYearly)} once a year — you save{" "}
-                      {peso(savedPerYear(p))} ({savePct}%)
+                      Only {peso(p.priceYearly / 12)} / month — save{" "}
+                      {peso(savedPerYear(p))} ({savePct}%) vs paying monthly
                     </p>
                   </>
                 )}
