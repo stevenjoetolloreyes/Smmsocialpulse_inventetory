@@ -19,7 +19,6 @@ import { LabelsView } from "./LabelsView";
 import { SettingsView } from "./SettingsView";
 import { SubscriptionView } from "./SubscriptionView";
 import { NotificationsView, NotificationBell, NotificationPrefs } from "./Notifications";
-import { setThemeModeAction } from "@/server/actions";
 import { HelpButton } from "./HelpButton";
 import { PrintHost } from "./PrintHost";
 
@@ -561,7 +560,7 @@ function WelcomeBanner() {
 }
 
 export function AppShell() {
-  const { data, view, setView, toast, busy, run } = useStore();
+  const { data, view, setView, toast, busy } = useStore();
   const settings = data.settings;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -610,14 +609,8 @@ export function AppShell() {
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, [themeMode]);
-  const cycleTheme = () => {
-    const next =
-      themeMode === "light" ? "dark" : themeMode === "dark" ? "system" : "light";
-    setThemeModeState(next);
-    void run(() => setThemeModeAction(next)).catch(() => {
-      /* the choice still applies on this device via localStorage */
-    });
-  };
+  // Appearance changes are made in Settings → General; this effect only
+  // APPLIES the saved preference (state syncs from data.themeMode).
 
   // Lock body scroll while the mobile drawer is open.
   useEffect(() => {
@@ -759,22 +752,6 @@ export function AppShell() {
           >
             <Icon name="crown" />
             <span className="hidden sm:inline">{plan.name}</span>
-          </button>
-          <button
-            onClick={cycleTheme}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-500 transition hover:bg-stone-200"
-            aria-label={`Appearance: ${themeMode === "light" ? "Light" : themeMode === "dark" ? "Dark" : "System"}. Activate to change appearance.`}
-            title={`Appearance: ${themeMode === "light" ? "Light" : themeMode === "dark" ? "Dark" : "System (device)"}`}
-          >
-            <Icon
-              name={
-                themeMode === "dark"
-                  ? "moon"
-                  : themeMode === "system"
-                    ? "circle-half-stroke"
-                    : "sun"
-              }
-            />
           </button>
           <NotificationBell />
           <UserMenu />

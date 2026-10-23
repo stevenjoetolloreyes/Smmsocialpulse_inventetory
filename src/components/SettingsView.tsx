@@ -8,7 +8,7 @@ import {
 } from "./ui";
 import { ProductThumb } from "./Qr";
 import { fmtDateTime } from "@/lib/format";
-import { permanentDeleteProduct, restoreProduct, saveCategory, saveSettings, saveStaff } from "@/server/actions";
+import { permanentDeleteProduct, restoreProduct, saveCategory, saveSettings, saveStaff, setThemeModeAction } from "@/server/actions";
 import type { SettingsDTO, StaffDTO } from "@/lib/types";
 
 const COLOR_PRESETS = ["#14532d", "#1d4ed8", "#7c3aed", "#b91c1c", "#0f766e", "#b45309", "#111827"];
@@ -297,6 +297,43 @@ function GeneralTab() {
             />
             <span className="text-sm font-medium text-stone-500">{form.primaryColor}</span>
           </div>
+        </div>
+
+        <div className="mt-4">
+          <label className={labelCls}>Appearance (applies immediately)</label>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Appearance">
+            {(
+              [
+                ["light", "Light", "sun"],
+                ["dark", "Dark", "moon"],
+                ["system", "System", "circle-half-stroke"],
+              ] as const
+            ).map(([mode, label, icon]) => (
+              <button
+                key={mode}
+                aria-pressed={data.themeMode === mode}
+                className={`rounded-xl px-3.5 py-2 text-sm font-semibold ${
+                  data.themeMode === mode
+                    ? "bg-[var(--brand)] text-white"
+                    : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                }`}
+                onClick={async () => {
+                  try {
+                    await run(() => setThemeModeAction(mode));
+                    showToast(`Appearance set to ${label}.`);
+                  } catch {
+                    /* toasted by run() */
+                  }
+                }}
+              >
+                <Icon name={icon} /> {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-stone-400">
+            Saved to your account — it follows you on any device you sign in with.
+            System follows your device&apos;s light/dark setting.
+          </p>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
