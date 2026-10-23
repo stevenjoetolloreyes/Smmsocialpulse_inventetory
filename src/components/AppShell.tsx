@@ -27,7 +27,7 @@ import { PrintHost } from "./PrintHost";
  * multiple groups may be open at once). QR Labels stays under Reports,
  * where it has always lived.
  *
- * Presentation: a floating "edge" panel — deep-navy → royal-blue
+ * Presentation: a floating "edge" panel — deep-green brand
  * gradient with a violet tail, 30px corners, glass border and soft
  * shadow — as an off-canvas drawer on mobile and a persistent,
  * collapsible (icon-only) rail on desktop.
@@ -102,7 +102,7 @@ const TITLES: Record<ViewKey, string> = {
 /** Floating tooltip shown beside icon-only (collapsed) rail buttons. */
 function RailTip({ label }: { label: string }) {
   return (
-    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#0a1f44] px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-xl ring-1 ring-white/20 transition-opacity duration-150 group-hover:opacity-100">
+    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#12291b] px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-xl ring-1 ring-white/20 transition-opacity duration-150 group-hover:opacity-100">
       {label}
     </span>
   );
@@ -111,7 +111,7 @@ function RailTip({ label }: { label: string }) {
 const itemBase =
   "ims-item flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]";
 const itemActive =
-  "bg-white text-[#0a1f44] shadow-lg shadow-blue-950/30 ring-1 ring-white/70";
+  "bg-white text-[#12291b] shadow-lg shadow-green-950/30 ring-1 ring-white/70";
 const itemIdle = "text-white/85 hover:bg-white/10 hover:text-white";
 
 /** The grouped navigation list — identical in the sidebar and the drawer. */
@@ -159,7 +159,7 @@ function NavList({
             onClick={() => go(item.key)}
             className={`ims-item relative flex w-full items-center justify-center rounded-2xl py-2.5 transition-all duration-200 active:scale-95 ${
               active
-                ? "bg-white text-[#0a1f44] shadow-lg shadow-blue-950/30 ring-1 ring-white/70"
+                ? "bg-white text-[#12291b] shadow-lg shadow-green-950/30 ring-1 ring-white/70"
                 : "text-white/85 hover:bg-white/10 hover:text-white"
             }`}
             aria-label={item.label}
@@ -167,7 +167,7 @@ function NavList({
           >
             <Icon name={item.icon} className="text-base" />
             {alert > 0 && (
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[#123a7a]" />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[#14532d]" />
             )}
           </button>
           <RailTip label={item.label} />
@@ -187,20 +187,17 @@ function NavList({
     );
   }
 
-  const renderItem = (
-    item: { key: ViewKey; label: string; icon: string },
-    nested = false,
-  ) => {
+  const renderItem = (item: { key: ViewKey; label: string; icon: string }) => {
     const active = view === item.key;
     const alert = alertFor(item.key);
     return (
       <li key={item.key}>
         <button
           onClick={() => go(item.key)}
-          className={`${itemBase} ${active ? itemActive : itemIdle} ${nested ? "pl-11" : ""}`}
+          className={`${itemBase} ${active ? itemActive : itemIdle}`}
           aria-current={active ? "page" : undefined}
         >
-          {!nested && <Icon name={item.icon} className="w-5 text-center" />}
+          <Icon name={item.icon} className="w-5 text-center" />
           <span className="flex-1 text-left">{item.label}</span>
           {alert > 0 && (
             <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
@@ -242,7 +239,7 @@ function NavList({
             >
               <div className="overflow-hidden">
                 <ul className="space-y-0.5 pt-0.5">
-                  {group.items.map((item) => renderItem(item, true))}
+                  {group.items.map((item) => renderItem(item))}
                 </ul>
               </div>
             </div>
@@ -555,7 +552,7 @@ export function AppShell() {
       >
         <div
           onClick={() => setDrawerOpen(false)}
-          className={`ims-backdrop absolute inset-0 bg-[#060d1f]/55 backdrop-blur-[3px] ${
+          className={`ims-backdrop absolute inset-0 bg-[#04120a]/55 backdrop-blur-[3px] ${
             drawerOpen ? "opacity-100" : "opacity-0"
           }`}
         />

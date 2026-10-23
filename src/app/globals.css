@@ -31,15 +31,15 @@ body {
 }
 
 /* ---------- floating edge sidebar / drawer ---------- */
-/* Deep navy → royal blue with a violet tail, glass rim, soft shadow. */
+/* Deep green brand gradient (dark pine → forest), glass rim, soft shadow. */
 .ims-side,
 .ims-drawer {
   background: linear-gradient(
     168deg,
-    #0a1f44 0%,
-    #10315f 34%,
-    #1d4ed8 82%,
-    #4f46e5 125%
+    #0c2317 0%,
+    #12291b 34%,
+    #14532d 82%,
+    #166534 125%
   );
   border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 30px;
