@@ -757,7 +757,7 @@ export function AppShell() {
           <UserMenu />
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-8 pt-4 lg:px-6">
+        <main className="w-full max-w-none min-w-0 flex-1 px-4 pb-8 pt-4 lg:px-6">
           <div key={view} className="ims-view-in">
             {view === "dashboard" && <Dashboard />}
             {view === "pos" && <Pos />}
