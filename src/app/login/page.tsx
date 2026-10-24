@@ -279,6 +279,11 @@ export default function LoginPage() {
             />
             <EyeToggle show={showOwnerPw} onToggle={() => setShowOwnerPw((v) => !v)} />
           </div>
+          <div className="mt-2 text-right">
+            <Link href="/forgot-password" className="text-sm font-semibold text-[#15803d] hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <CapsLockWarning on={capsOn} />
           {rememberRow}
 
@@ -296,12 +301,6 @@ export default function LoginPage() {
           </button>
 
           <SocialButtons />
-
-          <div className="mt-4 text-right">
-            <Link href="/forgot-password" className="text-sm font-semibold text-[#15803d] hover:underline">
-              Forgot password?
-            </Link>
-          </div>
         </form>
       ) : (
         <form onSubmit={submitStaff} autoComplete="off">
