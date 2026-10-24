@@ -302,10 +302,6 @@ export default function LoginPage() {
               Forgot password?
             </Link>
           </div>
-          <p className="mt-2 text-center text-xs leading-relaxed text-stone-400">
-            Store staff without an email on their account can instead ask their store
-            owner to set a new password in Settings → User Management.
-          </p>
         </form>
       ) : (
         <form onSubmit={submitStaff} autoComplete="off">

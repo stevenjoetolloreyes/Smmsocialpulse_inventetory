@@ -231,11 +231,6 @@ export default function RegisterPage() {
               Sign in
             </Link>
           </p>
-          <p className="mt-3 text-center text-xs leading-relaxed text-stone-400">
-            Registering creates your own store on the Free plan with you as its owner.
-            Your account activates when you click the verification link we email you —
-            then a short setup wizard walks you through your store profile.
-          </p>
         </>
       )}
     </AuthCard>
