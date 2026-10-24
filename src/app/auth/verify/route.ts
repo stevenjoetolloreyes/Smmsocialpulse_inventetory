@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
+import { appBaseUrl, sendWelcomeEmail } from "@/lib/mail";
 import * as t from "@/lib/schema";
 import { addHistory, consumeEmailToken, peekEmailToken } from "@/server/helpers";
 
@@ -33,6 +34,19 @@ export async function GET(req: NextRequest) {
         actor: user.name,
         reference: user.username,
       });
+    }
+    // Welcome email: sent exactly once, on this successful activation.
+    // The token above is already consumed, so this route can never
+    // succeed twice for the same link — that single-use token is the
+    // duplicate guard (no schema change needed). A send failure must
+    // never undo the activation, so it is swallowed here; the user
+    // can still sign in either way.
+    if (user.email) {
+      try {
+        await sendWelcomeEmail(user.email, `${appBaseUrl()}/login`);
+      } catch {
+        // ignore — activation already succeeded
+      }
     }
     return NextResponse.redirect(new URL("/login?verified=1", req.url));
   } catch {

@@ -92,8 +92,11 @@ function emailHtml(args: {
   message: string;
   buttonLabel: string;
   buttonUrl: string;
-  expiryNote: string;
+  /** Omitted for emails without a token link (e.g. the welcome email). */
+  expiryNote?: string;
   securityNote: string;
+  /** Omitted unless the email has a support line (e.g. the welcome email). */
+  supportNote?: string;
 }): string {
   const url = escapeHtml(args.buttonUrl);
   const year = new Date().getFullYear();
@@ -128,8 +131,9 @@ function emailHtml(args: {
 </td></tr>
 </table>
 <p style="margin:24px 0 0 0;font-family:${FONT};font-size:13px;line-height:20px;color:${MUTED};word-break:break-all;">If the button doesn't work, copy and paste this link into your browser:<br><a href="${url}" target="_blank" rel="noopener" style="color:${INDIGO_DARK};text-decoration:underline;">${url}</a></p>
-<p style="margin:20px 0 0 0;font-family:${FONT};font-size:13px;line-height:20px;color:${MUTED};">${escapeHtml(args.expiryNote)}</p>
+${args.expiryNote ? `<p style="margin:20px 0 0 0;font-family:${FONT};font-size:13px;line-height:20px;color:${MUTED};">${escapeHtml(args.expiryNote)}</p>` : ""}
 <p style="margin:12px 0 0 0;font-family:${FONT};font-size:13px;line-height:20px;color:${MUTED};">${escapeHtml(args.securityNote)}</p>
+${args.supportNote ? `<p style="margin:12px 0 0 0;font-family:${FONT};font-size:13px;line-height:20px;color:${MUTED};">${escapeHtml(args.supportNote)}</p>` : ""}
 </td></tr>
 <tr><td align="center" style="padding:0 44px 32px 44px;">
 <p style="margin:0;font-family:${FONT};font-size:12px;line-height:18px;color:${MUTED};">&copy; ${year} Inventory Management System</p>
@@ -306,6 +310,51 @@ export async function sendPasswordResetEmail(
       resetUrl,
       "",
       "This link expires in 1 hour and can be used once. If you did not request it, you can ignore this email.",
+    ].join("\n"),
+    html,
+  });
+}
+
+export async function sendWelcomeEmail(
+  to: string,
+  loginUrl: string,
+): Promise<boolean> {
+  // Sent exactly once, from the verify route after the account is
+  // activated. No token and no expiry: the button is the permanent
+  // sign-in page, so there is nothing to expire, reuse, or fall back
+  // to — and no password, token, or secret appears in the email.
+  const html = emailHtml({
+    preheader:
+      "Welcome to Inventory Management System — your store account is now active.",
+    heading: "Welcome to Inventory Management System!",
+    supporting: "Your store, your inventory, your business.",
+    message:
+      "Welcome aboard! We're excited to have you as part of Inventory Management System. Your email is verified and your account is now active. You can now explore your dashboard and start managing everything in one convenient place.",
+    buttonLabel: "Go to My Dashboard",
+    buttonUrl: loginUrl,
+    securityNote:
+      "If you didn't create this account, you can safely ignore this email.",
+    supportNote:
+      "Need help? Send feedback from inside your dashboard — our team replies there.",
+  });
+  return sendMail({
+    to,
+    subject: "Welcome to Inventory Management System — Let's Get Started!",
+    text: [
+      "Welcome to Inventory Management System!",
+      "",
+      "Your store, your inventory, your business.",
+      "",
+      "Hi there,",
+      "",
+      "Welcome aboard! We're excited to have you as part of Inventory Management System. Your email is verified and your account is now active. You can now explore your dashboard and start managing everything in one convenient place.",
+      "",
+      "Go to My Dashboard:",
+      loginUrl,
+      "",
+      "If you didn't create this account, you can safely ignore this email.",
+      "",
+      "Need help? Send feedback from inside your dashboard — our team replies there.",
     ].join("\n"),
     html,
   });
