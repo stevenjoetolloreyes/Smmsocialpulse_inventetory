@@ -6,6 +6,7 @@ import { requestPasswordResetAction } from "@/server/actions";
 import { unwrapActionResult } from "@/lib/actionResult";
 import { Icon } from "./ui";
 import {
+  AuthCard,
   AuthError,
   FieldIcon,
   authInputCls,
@@ -32,9 +33,16 @@ export function ForgotPasswordForm() {
     }
   };
 
-  if (result) {
-    return (
-      <div className="text-center">
+  // The card header (logo + heading + subtitle) hides once the request
+  // succeeds, so the card shows only the "Check your email" confirmation.
+  return (
+    <AuthCard
+      heading="Forgot password"
+      subtitle="We will email you a link to set a new password"
+      hideHeader={result !== null}
+    >
+      {result ? (
+        <div className="text-center">
         <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl text-green-700">
           <Icon name="envelope-open-text" />
         </span>
@@ -61,12 +69,9 @@ export function ForgotPasswordForm() {
         <Link href="/login" className={`${authPrimaryBtnCls} mt-5`}>
           Back to Sign in
         </Link>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} autoComplete="off">
+        </div>
+      ) : (
+        <form onSubmit={submit} autoComplete="off">
       <label className={authLabelCls} htmlFor="fp-email">
         Email address
       </label>
@@ -102,6 +107,8 @@ export function ForgotPasswordForm() {
         Store staff without an email on their account can ask their store owner to set a
         new password in Settings → User Management.
       </p>
-    </form>
+        </form>
+      )}
+    </AuthCard>
   );
 }

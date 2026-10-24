@@ -1,15 +1,9 @@
-import { AuthCard } from "@/components/AuthShell";
 import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
 
 export const dynamic = "force-dynamic";
 
+// The form owns its AuthCard so the card header (logo + heading +
+// subtitle) can hide once the request succeeds.
 export default function ForgotPasswordPage() {
-  return (
-    <AuthCard
-      heading="Forgot password"
-      subtitle="We will email you a link to set a new password"
-    >
-      <ForgotPasswordForm />
-    </AuthCard>
-  );
+  return <ForgotPasswordForm />;
 }

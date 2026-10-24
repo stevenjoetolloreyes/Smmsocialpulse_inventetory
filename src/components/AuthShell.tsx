@@ -319,27 +319,35 @@ export function AuthCard({
   heading,
   subtitle,
   children,
+  hideHeader = false,
 }: {
   heading: string;
   subtitle: string;
   children: ReactNode;
+  /** When true, the logo + heading + subtitle block is omitted
+   *  (used by the forgot-password success state, where the card shows
+   *  only the "Check your email" confirmation). Defaults to false, so
+   *  every other AuthCard caller is unaffected. */
+  hideHeader?: boolean;
 }) {
   const year = new Date().getFullYear();
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-10">
       <AuthBackground />
       <div className="relative w-full max-w-md rounded-[24px] bg-white/95 p-7 shadow-[0_24px_60px_-16px_rgba(20,83,45,0.35)] ring-1 ring-black/5 backdrop-blur sm:p-9">
-        <div className="mb-6 text-center">
-          <img
-            src={LOGO_SRC}
-            alt="Inventory Management System logo"
-            className="mx-auto mb-3 h-16 w-16 rounded-2xl object-cover shadow-md ring-1 ring-black/5"
-          />
-          <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-[#14532d]">
-            {heading}
-          </h1>
-          <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
-        </div>
+        {!hideHeader && (
+          <div className="mb-6 text-center">
+            <img
+              src={LOGO_SRC}
+              alt="Inventory Management System logo"
+              className="mx-auto mb-3 h-16 w-16 rounded-2xl object-cover shadow-md ring-1 ring-black/5"
+            />
+            <h1 className="text-[22px] font-extrabold leading-tight tracking-tight text-[#14532d]">
+              {heading}
+            </h1>
+            <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
+          </div>
+        )}
 
         {children}
 
