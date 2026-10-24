@@ -73,6 +73,10 @@ export default function RegisterPage() {
     <AuthCard
       heading="Inventory Management System"
       subtitle="Create an account to get started"
+      // Same rule as the forgot-password success screen: once the
+      // account is created, the form header is redundant, so only the
+      // success block (mail icon + "Check your email to verify") shows.
+      hideHeader={done !== null}
     >
       {done ? (
         <div className="text-center">
